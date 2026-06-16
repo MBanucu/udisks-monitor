@@ -10,7 +10,8 @@ import threading
 import time
 import unittest
 
-from udisks_monitor import DevicePropertyChanged, JobProperties, UdisksMonitor
+from udisks_monitor import (DevicePropertyChanged, JobCompleted,
+                             JobProperties, UdisksMonitor)
 
 
 def udisksctl_available():
@@ -44,24 +45,21 @@ def cleanup(device, img_path):
                     '--no-user-interaction'], capture_output=True)
     subprocess.run(['udisksctl', 'loop-delete', '-b', device,
                     '--no-user-interaction'], capture_output=True)
-    time.sleep(0.5)
+    time.sleep(0.3)
     if os.path.exists(img_path):
         os.unlink(img_path)
 
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestIntegration(unittest.TestCase):
-    """Real udisksctl monitor — start monitor, attach a loop device,
-    then verify that property and job events are received."""
+    """Real udisksctl monitor integration — event-driven."""
 
     @classmethod
     def setUpClass(cls):
-        pass  # device created per test to ensure fresh events
+        pass  # device created per test for fresh events
 
     def setUp(self):
         self.mon = UdisksMonitor()
-        self.received = []
-        self.mon.subscribe(lambda e: self.received.append(e))
 
     def tearDown(self):
         self.mon.stop()
@@ -72,33 +70,61 @@ class TestIntegration(unittest.TestCase):
         ready = self.mon.ready.wait(timeout=10)
         self.assertTrue(ready)
 
-    def test_receives_events_on_loop_setup(self):
-        """Verify the monitor receives events when a loop device is created."""
-        self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
-        time.sleep(0.2)
-        self.received.clear()
-        dev, img, _name = make_image()
-        self.addCleanup(cleanup, dev, img)
-        time.sleep(1.5)
-        self.assertGreaterEqual(
-            len(self.received), 1,
-            f'no events received during loop-setup')
+    def test_event_driven_property_detection(self):
+        """Use a threading.Event to wait for the first DevicePropertyChanged."""
+        received = threading.Event()
+        first_event = []
 
-    def test_multiple_subscribers(self):
-        r1, r2 = [], []
-        self.mon.subscribe(lambda e: r1.append(e),
-                           event_type=DevicePropertyChanged)
-        self.mon.subscribe(lambda e: r2.append(e),
-                           event_type=DevicePropertyChanged)
+        def handler(evt):
+            first_event.append(evt)
+            received.set()
+
+        self.mon.subscribe(handler, event_type=DevicePropertyChanged)
         self.mon.start()
         self.assertTrue(self.mon.ready.wait(timeout=10))
-        time.sleep(0.2)
+
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)
-        time.sleep(1.5)
-        self.assertGreaterEqual(len(r1), 1, f'r1={len(r1)}')
-        self.assertGreaterEqual(len(r2), 1, f'r2={len(r2)}')
+
+        self.assertTrue(received.wait(timeout=5),
+                        'timed out waiting for property event')
+        self.assertIsInstance(first_event[0], DevicePropertyChanged)
+
+    def test_event_driven_job_detection(self):
+        """Wait for a JobCompleted event after loop-setup."""
+        received = threading.Event()
+        first_job = []
+
+        def handler(evt):
+            first_job.append(evt)
+            received.set()
+
+        self.mon.subscribe(handler, event_type=JobCompleted)
+        self.mon.start()
+        self.assertTrue(self.mon.ready.wait(timeout=10))
+
+        dev, img, _name = make_image()
+        self.addCleanup(cleanup, dev, img)
+
+        self.assertTrue(received.wait(timeout=5),
+                        'timed out waiting for job completed event')
+        self.assertIsInstance(first_job[0], JobCompleted)
+
+    def test_multiple_subscribers_both_fire(self):
+        """Two subscribers both receive the same event."""
+        r1 = threading.Event()
+        r2 = threading.Event()
+
+        self.mon.subscribe(lambda e: r1.set(), event_type=DevicePropertyChanged)
+        self.mon.subscribe(lambda e: r2.set(), event_type=DevicePropertyChanged)
+        self.mon.start()
+        self.assertTrue(self.mon.ready.wait(timeout=10))
+
+        dev, img, _name = make_image()
+        self.addCleanup(cleanup, dev, img)
+
+        self.assertTrue(r1.wait(timeout=5), 'subscriber 1 did not fire')
+        self.assertTrue(r2.wait(timeout=5), 'subscriber 2 did not fire')
 
     def test_stop_stops_monitor(self):
         self.mon.start()
