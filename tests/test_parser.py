@@ -227,3 +227,17 @@ class TestEdgeCases(unittest.TestCase):
                           'Removed interface org.freedesktop.UDisks2.Filesystem')
         self.assertIsInstance(ev2, InterfaceRemoved)
         self.assertEqual(ev2.device_name, 'loop3')
+
+    def test_timestamp_stripping(self):
+        """Lines with ``HH:MM:SS.mmm: `` prefix are parsed correctly."""
+        ts = '20:23:11.979: '
+        self.assertIsInstance(self.p.feed(ts + 'Added /org/freedesktop/UDisks2/jobs/1'),
+                              JobAdded)
+        self.p.feed(ts + '    Operation:  loop-delete')
+        self.assertIsInstance(self.p.feed(ts + '    Objects:    /org/.../loop0'),
+                              JobProperties)
+        self.assertIsInstance(self.p.feed(ts + '/org/freedesktop/UDisks2/jobs/1: '
+                                  'org.freedesktop.UDisks2.Job::Completed (true, \'\')'),
+                              JobCompleted)
+        self.assertIsInstance(self.p.feed(ts + 'Removed /org/freedesktop/UDisks2/jobs/1'),
+                              JobRemoved)
