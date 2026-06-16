@@ -90,9 +90,16 @@ class TestIntegration(unittest.TestCase):
                         'timed out waiting for property event')
         self.assertIsInstance(first_event[0], DevicePropertyChanged)
 
-    @unittest.skipIf(os.environ.get('CI'), 'timing-sensitive in CI')
     def test_event_driven_job_detection(self):
-        """Wait for a JobCompleted event after loop-setup."""
+        """Wait for a JobCompleted event after loop-delete.
+
+        The loop device is created *before* the monitor starts so that
+        the monitor's D-Bus signal match rules are fully registered
+        before the delete job is triggered — no race.
+        """
+        dev, img, _name = make_image()
+        self.addCleanup(cleanup, dev, img)
+
         received = threading.Event()
         first_job = []
 
@@ -104,8 +111,8 @@ class TestIntegration(unittest.TestCase):
         self.mon.start()
         self.assertTrue(self.mon.ready.wait(timeout=10))
 
-        dev, img, _name = make_image()
-        self.addCleanup(cleanup, dev, img)
+        subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
+                        '--no-user-interaction'], capture_output=True)
 
         self.assertTrue(received.wait(timeout=5),
                         'timed out waiting for job completed event')
