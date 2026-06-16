@@ -49,10 +49,14 @@ def _interface_from_line(line: str) -> str | None:
 
 
 def _object_path_from_line(line: str) -> str:
-    colon = line.find(':')
+    idx = line.find('/org/')
+    if idx == -1:
+        return ''
+    rest = line[idx:]
+    colon = rest.find(':')
     if colon != -1:
-        return line[:colon].rstrip()
-    return ''
+        rest = rest[:colon]
+    return rest
 
 
 class _BlockBuffer:
