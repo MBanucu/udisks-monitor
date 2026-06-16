@@ -68,12 +68,14 @@ class _BlockBuffer:
         self.device = ''
         self.interface = ''
         self.properties: dict[str, str] = {}
+        self.timestamp = ''
 
     def reset(self):
         self.path = ''
         self.device = ''
         self.interface = ''
         self.properties = {}
+        self.timestamp = ''
 
     def is_active(self) -> bool:
         return bool(self.path)
@@ -90,7 +92,7 @@ class MonitorParser:
 
     __slots__ = ('_cur_device', '_cur_interface', '_cur_object_path',
                  '_in_job', '_job_id', '_job_path', '_job_op',
-                 '_job_objects', '_job_emitted', '_iface_buf')
+                 '_job_objects', '_job_emitted', '_iface_buf', '_ts')
 
     def __init__(self):
         self._cur_device = ''
@@ -103,9 +105,13 @@ class MonitorParser:
         self._job_objects = ''
         self._job_emitted = False
         self._iface_buf = _BlockBuffer()
+        self._ts = ''
 
     def feed(self, line: str):
         clean = _ANSI_RE.sub('', line)
+        m = _TIMESTAMP_RE.match(clean)
+        if m:
+            self._ts = m.group(0)[:-2]
         clean = _TIMESTAMP_RE.sub('', clean)
         event = None
 
@@ -127,7 +133,8 @@ class MonitorParser:
             self._job_objects = ''
             self._job_emitted = False
             return event if event else JobAdded(
-                job_path=self._job_path, job_id=self._job_id)
+                job_path=self._job_path, job_id=self._job_id,
+                timestamp=self._ts)
 
         # Job Removed
         if clean.startswith('Removed ' + _JOBS_PREFIX):
@@ -135,7 +142,8 @@ class MonitorParser:
             jid = int(jp.rsplit('/', 1)[1])
             if jid == self._job_id:
                 self._in_job = False
-            ev = JobRemoved(job_path=jp, job_id=jid)
+            ev = JobRemoved(job_path=jp, job_id=jid,
+                            timestamp=self._ts)
             return _merge(event, ev)
 
         # Job::Completed
@@ -150,7 +158,8 @@ class MonitorParser:
             if len(parts) > 1:
                 msg = parts[1].strip().strip("'")
             ev = JobCompleted(job_path=obj_path, job_id=jid,
-                              success=success, message=msg)
+                              success=success, message=msg,
+                              timestamp=self._ts)
             return _merge(event, ev)
 
         # Added interface
@@ -162,6 +171,7 @@ class MonitorParser:
             self._iface_buf.device = device
             self._iface_buf.interface = iface
             self._iface_buf.properties = {}
+            self._iface_buf.timestamp = self._ts
             self._update_context(clean, device, iface)
             return event
 
@@ -171,7 +181,8 @@ class MonitorParser:
             iface = _interface_from_line(clean) or ''
             self._update_context(clean, device, iface)
             ev = InterfaceRemoved(object_path=_object_path_from_line(clean),
-                                  device_name=device, interface=iface)
+                                  device_name=device, interface=iface,
+                                  timestamp=self._ts)
             return _merge(event, ev)
 
         # Properties Changed
@@ -203,7 +214,8 @@ class MonitorParser:
                         return JobProperties(job_path=self._job_path,
                                              job_id=self._job_id,
                                              operation=self._job_op,
-                                             objects=self._job_objects)
+                                             objects=self._job_objects,
+                                             timestamp=self._ts)
                 return None
             # ``  org.freedesktop.UDisks2.Job:`` header — ignore
             if 'UDisks2.Job' in clean:
@@ -230,6 +242,7 @@ class MonitorParser:
                     interface=self._cur_interface,
                     property=prop,
                     value=value,
+                    timestamp=self._ts,
                 )
 
         return None
@@ -242,6 +255,7 @@ class MonitorParser:
             device_name=self._iface_buf.device,
             interface=self._iface_buf.interface,
             properties=dict(self._iface_buf.properties),
+            timestamp=self._iface_buf.timestamp,
         )
         self._iface_buf.reset()
         return ev
