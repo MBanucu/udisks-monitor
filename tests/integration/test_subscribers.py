@@ -1,5 +1,6 @@
 """Integration tests for subscriber behavior with real UDisks2."""
 
+import subprocess
 import threading
 import unittest
 
@@ -38,6 +39,9 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.assertTrue(r2.wait(timeout=5), 'subscriber 2 did not fire')
 
     def test_filtered_subscriber_only_receives_matching_events(self):
+        dev, img, _name = make_image()
+        self.addCleanup(cleanup, dev, img)
+
         props_received = threading.Event()
         jobs_received = threading.Event()
 
@@ -48,8 +52,8 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.start()
         self.assertTrue(self.mon.ready.wait(timeout=10))
 
-        dev, img, _name = make_image()
-        self.addCleanup(cleanup, dev, img)
+        subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
+                        '--no-user-interaction'], capture_output=True)
 
         prop_ok = props_received.wait(timeout=5)
         job_ok = jobs_received.wait(timeout=5)
