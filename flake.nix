@@ -34,9 +34,9 @@
     )
     // {
       overlays.default = final: prev: {
-        udisks-monitor = final.python3.pkgs.callPackage ./default.nix {
+        udisks-monitor = (final.python3.pkgs.callPackage ./default.nix {
           src = final.lib.cleanSource ./.;
-        };
+        }).overrideAttrs (_: { doCheck = true; });
         python3 = prev.python3.override {
           packageOverrides = _: _: {
             inherit (final) udisks-monitor;

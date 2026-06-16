@@ -3,6 +3,8 @@
 , buildPythonPackage
 , setuptools
 , src
+, udisks2
+, dosfstools
 }:
 buildPythonPackage rec {
   pname = "udisks-monitor";
@@ -12,9 +14,11 @@ buildPythonPackage rec {
   inherit src;
 
   nativeBuildInputs = [ setuptools ];
+  buildInputs = [ ];
+  nativeCheckInputs = [ udisks2 dosfstools ];
   propagatedBuildInputs = [ ];
 
-  doCheck = false;
+  doCheck = true;
   pythonImportsCheck = [ "udisks_monitor" ];
 
   meta = with lib; {
