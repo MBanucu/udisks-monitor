@@ -22,6 +22,9 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.join(timeout=5)
 
     def test_multiple_subscribers_both_fire(self):
+        dev, img, _name = make_image()
+        self.addCleanup(cleanup, dev, img)
+
         r1 = threading.Event()
         r2 = threading.Event()
 
@@ -32,8 +35,8 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.start()
         self.assertTrue(self.mon.ready.wait(timeout=10))
 
-        dev, img, _name = make_image()
-        self.addCleanup(cleanup, dev, img)
+        subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
+                        '--no-user-interaction'], capture_output=True)
 
         self.assertTrue(r1.wait(timeout=5), 'subscriber 1 did not fire')
         self.assertTrue(r2.wait(timeout=5), 'subscriber 2 did not fire')
