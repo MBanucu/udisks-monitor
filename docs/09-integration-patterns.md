@@ -1,76 +1,38 @@
 # 09 — Integration Patterns
 
-How to integrate `udisksctl monitor` into a Python application.
+How to integrate `udisks-monitor` and `udisksctl monitor` into a Python application.
 
-## Pattern 1: Detach confirmation (unmount-image)
+## Pattern 1: Event-driven loop device lifecycle (udisks-monitor)
 
-The primary integration pattern used by `unmount-image`:
-
-```
-┌─────────────────────────────────────────────┐
-│  umount_image(device)                       │
-│    │                                         │
-│    ├─ 1. unmount (strategy)                 │
-│    │                                         │
-│    └─ 2. detach_loop(device)                │
-│          │                                   │
-│          └─ _DetachThread(device).start()   │
-│               │                              │
-│               ├─ start _UdisksMonitor       │
-│               │                              │
-│               └─ loop:                      │
-│                    unmount                   │
-│                    loop-delete               │
-│                    wait for monitor feedback  │
-│                      ├─ backing_cleared? → done │
-│                      ├─ mount_detected? → retry │
-│                      └─ timeout → fallback    │
-└─────────────────────────────────────────────┘
-```
-
-### The _DetachThread state machine
+The primary integration pattern provided by `udisks-monitor`:
 
 ```python
-def _run_detach(self):
-    monitor = _UdisksMonitor(device_name)
-    monitor.start()
-    monitor.ready.wait(timeout=10)
+from udisks_monitor import UdisksMonitor, DevicePropertyChanged, JobCompleted
 
-    while True:
-        monitor.reset_events()
-        _unmount_normal(device, None)
-        time.sleep(0.15)
-        loop_delete(device)
+mon = UdisksMonitor()
 
-        deadline = time.monotonic() + 10.0
-        while time.monotonic() < deadline:
-            if monitor.mount_detected.is_set():
-                break          # re-mounted, retry
-            if monitor.backing_cleared.is_set():
-                time.sleep(0.3)
-                if monitor.mount_detected.is_set():
-                    break      # re-mounted during grace period
-                return         # confirmed detached
-            time.sleep(0.1)
-        else:
-            _fallback_detach(name, device)
-            return
+@mon.on(DevicePropertyChanged, device='loop0', property_='BackingFile')
+def on_backing(evt):
+    if not evt.value:
+        print(f"{evt.device_name} backing file cleared at {evt.timestamp}")
+
+@mon.on(JobCompleted, operation='loop-delete')
+def on_deleted(evt):
+    print(f"loop-delete complete: success={evt.success}")
+
+mon.start()
+mon.join()
 ```
 
 ### Key design decisions
 
-1. **Daemon threads**: both `_UdisksMonitor` and `_DetachThread` are daemon
-   threads. They won't block process exit.
-2. **`threading.Event` signalling**: `backing_cleared` and `mount_detected`
-   are cross-thread signals set by the monitor thread, waited on by the
-   detach thread.
-3. **Ready signal**: `monitor.ready.wait(timeout=10)` ensures the monitor
-   has connected to D-Bus before any detach attempt.
-4. **Grace period**: after `backing_cleared`, a 0.3 s sleep + re-check of
-   `mount_detected` catches the last-moment re-mount.
-5. **Fallback**: if the monitor doesn't confirm detach within 10 s, a
-   polling-based fallback (`_fallback_detach`) uses
-   `/sys/block/<name>/backing_file` existence to confirm deletion.
+1. **Daemon thread**: `UdisksMonitor` is a daemon thread — won't block process exit.
+2. **Pre-start subscriptions**: callbacks registered before `start()` are active
+   immediately when the monitor connects to D-Bus.
+3. **`ready` signal**: `mon.ready.wait(timeout=10)` ensures the monitor
+   has connected to D-Bus before triggering any UDisks2 operations.
+4. **Event-driven stop**: use `threading.Event` or `EventBus` subscription
+   filters to wait for specific events rather than polling.
 
 ## Pattern 2: Device appearance watcher
 
@@ -197,8 +159,8 @@ monitor is ready.
 ### Graceful shutdown
 
 ```python
-monitor._stop.set()       # signal the run loop
-monitor.join(timeout=3)   # wait for thread exit
+mon.stop()                # signal the run loop + terminate subprocess
+mon.join(timeout=3)       # wait for thread exit
 ```
 
 Inside the run loop, `subprocess.Popen` is terminated:
@@ -224,6 +186,6 @@ system resources.
 | `dbus-monitor --system` | Raw D-Bus, no UDisks2 dep | Very verbose, no semantic formatting |
 | `gi.repository.UDisks` | Official GLib binding | Requires typelib, GLib main loop |
 
-For `unmount-image`, the `udisksctl monitor` approach is the right trade-off:
-zero dependencies, simple enough for a small library, and robust for the
-specific signals it watches.
+For `udisks-monitor`, the `udisksctl monitor` approach is the right trade-off:
+a single lightweight dependency (`strip-ansi`), simple enough for a small library,
+and robust for all UDisks2 signal types.

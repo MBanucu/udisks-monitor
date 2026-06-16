@@ -66,7 +66,7 @@ Present on loop devices.
 | `SetupByUID` | uint32 | UID that set up the loop device |
 | `Autoclear` | bool | Whether the loop is auto-cleared on close |
 
-`BackingFile` is the critical property for `unmount-image`: when it becomes
+`BackingFile` is critical for loop device lifecycle tracking: when it becomes
 empty string `""`, the loop device has been detached.
 
 ### org.freedesktop.UDisks2.Partition

@@ -135,7 +135,7 @@ expected path, not just whether it became empty.
 
 ### Rapid mount/unmount cycles
 
-Desktop auto-mounters can remount within milliseconds. The `unmount-image`
+Desktop auto-mounters can remount within milliseconds. The `udisks-monitor`
 detach thread handles this with a retry loop, but a general monitor-based
 script should be prepared for fast toggles:
 

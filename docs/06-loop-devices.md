@@ -109,7 +109,7 @@ detachment.
 
 When a loop device's `BackingFile` transitions from a non-empty path to the
 empty string, the loop device has been successfully detached. This is the
-signal `unmount-image`'s `_UdisksMonitor` uses to set
+signal `udisks-monitor`'s `UdisksMonitor` uses to set
 `backing_cleared`.
 
 ### Important caveats
@@ -133,5 +133,5 @@ signal `unmount-image`'s `_UdisksMonitor` uses to set
 
 A desktop auto-mounter (gvfs, udisks2 itself with `HintAuto`) may re-mount a
 filesystem after a manual unmount. On UDisks2, this triggers new
-`filesystem-mount` jobs. `unmount-image` detects this via
+`filesystem-mount` jobs. `udisks-monitor` detects this via
 `mount_detected` and re-enters the unmount→delete loop.
