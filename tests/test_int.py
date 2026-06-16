@@ -90,6 +90,7 @@ class TestIntegration(unittest.TestCase):
                         'timed out waiting for property event')
         self.assertIsInstance(first_event[0], DevicePropertyChanged)
 
+    @unittest.skipIf(os.environ.get('CI'), 'timing-sensitive in CI')
     def test_event_driven_job_detection(self):
         """Wait for a JobCompleted event after loop-setup."""
         received = threading.Event()

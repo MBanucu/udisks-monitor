@@ -47,7 +47,7 @@ jobs:
           EOF
 
       - name: Run tests with coverage
-        run: script -q -c "python -m coverage run -m unittest discover -s tests -v" /dev/null
+        run: python -m coverage run -m unittest discover -s tests -v
 
       - name: Report coverage
         run: python -m coverage report --skip-covered
