@@ -36,7 +36,14 @@
       overlays.default = final: prev: {
         udisks-monitor = (final.python3.pkgs.callPackage ./default.nix {
           src = final.lib.cleanSource ./.;
-        }).overrideAttrs (_: { doCheck = true; });
+        }).overrideAttrs (_: {
+          doCheck = true;
+          installCheckPhase = ''
+            runHook preInstallCheck
+            python -m unittest discover -s tests -v
+            runHook postInstallCheck
+          '';
+        });
         python3 = prev.python3.override {
           packageOverrides = _: _: {
             inherit (final) udisks-monitor;
