@@ -1,6 +1,8 @@
 """unit tests for EventBus — subscription filtering and publish."""
 
+import io
 import unittest
+from contextlib import redirect_stderr
 
 from udisks_monitor._events import (
     DevicePropertyChanged,
@@ -146,8 +148,8 @@ class TestEventBus(unittest.TestCase):
             raise ValueError('boom')
 
         self.bus.subscribe(bad_handler)
-        # Should not raise
-        self.bus.publish(DevicePropertyChanged('', '', '', '', ''))
+        with redirect_stderr(io.StringIO()):
+            self.bus.publish(DevicePropertyChanged('', '', '', '', ''))
         self.assertTrue(True)
 
     def test_multiple_subscribers_same_event(self):
