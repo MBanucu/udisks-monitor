@@ -8,6 +8,7 @@
 , strip-ansi
 , unittestCheckHook
 }:
+
 buildPythonPackage rec {
   pname = "udisks-monitor";
   version = "0.1.0";
@@ -16,19 +17,16 @@ buildPythonPackage rec {
   inherit src;
 
   nativeBuildInputs = [ setuptools ];
-  buildInputs = [ ];
-  nativeCheckInputs = [ udisks2 dosfstools unittestCheckHook ];
+  nativeCheckInputs = [ dosfstools unittestCheckHook ];
+  propagatedBuildInputs = [ strip-ansi udisks2 ];
 
   unittestFlagsArray = [ "-s" "tests" "-v" ];
-  propagatedBuildInputs = [ strip-ansi ];
-
-  doCheck = true;
   pythonImportsCheck = [ "udisks_monitor" ];
 
   meta = with lib; {
     description = "Event-driven pub/sub wrapper around udisksctl monitor (Linux)";
     homepage = "https://github.com/MBanucu/udisks-monitor";
     license = licenses.gpl3Only;
-    maintainers = with maintainers; [ ];
+    maintainers = [ ];
   };
 }

@@ -23,7 +23,7 @@
         packages.default = pkgs.python3.pkgs.udisks-monitor;
 
         devShells.default = pkgs.mkShell {
-          inputsFrom = [ pkgs.python3.pkgs.udisks-monitor ];
+          inputsFrom = [ self.packages.${system}.default ];
           packages = [ pkgs.python3 ];
           shellHook = ''
             echo "udisks-monitor dev shell. Run tests:"
@@ -34,12 +34,11 @@
     )
     // {
       overlays.default = final: prev: {
-        udisks-monitor = final.python3.pkgs.callPackage ./default.nix {
-          src = final.lib.cleanSource ./.;
-        };
         python3 = prev.python3.override {
-          packageOverrides = _: _: {
-            inherit (final) udisks-monitor;
+          packageOverrides = pythonFinal: pythonPrev: {
+            udisks-monitor = pythonFinal.callPackage ./default.nix {
+              src = final.lib.cleanSource ./.;
+            };
           };
         };
       };
