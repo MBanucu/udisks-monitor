@@ -6,6 +6,7 @@
 , udisks2
 , dosfstools
 , strip-ansi
+, unittestCheckHook
 }:
 buildPythonPackage rec {
   pname = "udisks-monitor";
@@ -16,7 +17,9 @@ buildPythonPackage rec {
 
   nativeBuildInputs = [ setuptools ];
   buildInputs = [ ];
-  nativeCheckInputs = [ udisks2 dosfstools ];
+  nativeCheckInputs = [ udisks2 dosfstools unittestCheckHook ];
+
+  unittestFlagsArray = [ "-s" "tests" "-v" ];
   propagatedBuildInputs = [ strip-ansi ];
 
   doCheck = true;
