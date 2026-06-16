@@ -10,7 +10,6 @@ A single loop-setup + loop-delete cycle produces all 7 event types::
 
 import subprocess
 import threading
-import time
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
@@ -80,7 +79,7 @@ class TestAllEventTypes(unittest.TestCase):
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
 
-        time.sleep(2)
+        recorder.wait_for_type(InterfaceRemoved, timeout=5)
 
         mon.stop()
         mon.join(timeout=5)
