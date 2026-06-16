@@ -16,6 +16,7 @@ class DevicePropertyChanged(Event):
     interface: str
     property: str
     value: Any
+    timestamp: str = ''
 
 
 @dataclass(slots=True)
@@ -25,6 +26,7 @@ class InterfaceAdded(Event):
     device_name: str
     interface: str
     properties: dict[str, Any]
+    timestamp: str = ''
 
 
 @dataclass(slots=True)
@@ -33,6 +35,7 @@ class InterfaceRemoved(Event):
     object_path: str
     device_name: str
     interface: str
+    timestamp: str = ''
 
 
 @dataclass(slots=True)
@@ -40,6 +43,7 @@ class JobAdded(Event):
     """A new UDisks2 job was created."""
     job_path: str
     job_id: int
+    timestamp: str = ''
 
 
 @dataclass(slots=True)
@@ -49,6 +53,7 @@ class JobProperties(Event):
     job_id: int
     operation: str
     objects: str
+    timestamp: str = ''
 
 
 @dataclass(slots=True)
@@ -58,6 +63,7 @@ class JobCompleted(Event):
     job_id: int
     success: bool
     message: str
+    timestamp: str = ''
 
 
 @dataclass(slots=True)
@@ -65,3 +71,4 @@ class JobRemoved(Event):
     """A job object was removed from the UDisks2 tree."""
     job_path: str
     job_id: int
+    timestamp: str = ''

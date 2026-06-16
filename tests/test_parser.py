@@ -231,13 +231,17 @@ class TestEdgeCases(unittest.TestCase):
     def test_timestamp_stripping(self):
         """Lines with ``HH:MM:SS.mmm: `` prefix are parsed correctly."""
         ts = '20:23:11.979: '
-        self.assertIsInstance(self.p.feed(ts + 'Added /org/freedesktop/UDisks2/jobs/1'),
-                              JobAdded)
+        ev = self.p.feed(ts + 'Added /org/freedesktop/UDisks2/jobs/1')
+        self.assertIsInstance(ev, JobAdded)
+        self.assertEqual(ev.timestamp, '20:23:11.979')
         self.p.feed(ts + '    Operation:  loop-delete')
-        self.assertIsInstance(self.p.feed(ts + '    Objects:    /org/.../loop0'),
-                              JobProperties)
-        self.assertIsInstance(self.p.feed(ts + '/org/freedesktop/UDisks2/jobs/1: '
-                                  'org.freedesktop.UDisks2.Job::Completed (true, \'\')'),
-                              JobCompleted)
-        self.assertIsInstance(self.p.feed(ts + 'Removed /org/freedesktop/UDisks2/jobs/1'),
-                              JobRemoved)
+        ev = self.p.feed(ts + '    Objects:    /org/.../loop0')
+        self.assertIsInstance(ev, JobProperties)
+        self.assertEqual(ev.timestamp, '20:23:11.979')
+        ev = self.p.feed(ts + '/org/freedesktop/UDisks2/jobs/1: '
+                         'org.freedesktop.UDisks2.Job::Completed (true, \'\')')
+        self.assertIsInstance(ev, JobCompleted)
+        self.assertEqual(ev.timestamp, '20:23:11.979')
+        ev = self.p.feed(ts + 'Removed /org/freedesktop/UDisks2/jobs/1')
+        self.assertIsInstance(ev, JobRemoved)
+        self.assertEqual(ev.timestamp, '20:23:11.979')
