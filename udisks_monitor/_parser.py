@@ -13,6 +13,7 @@ from udisks_monitor._events import (
 )
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+_TIMESTAMP_RE = re.compile(r'^\d{2}:\d{2}:\d{2}\.\d{3}: ')
 _BACKING_RE = re.compile(r'BackingFile:\s+(.*)')
 _OP_RE = re.compile(r'Operation:\s+(\S+)')
 _OBJ_RE = re.compile(r'Objects:\s+(\S+)')
@@ -105,6 +106,7 @@ class MonitorParser:
 
     def feed(self, line: str):
         clean = _ANSI_RE.sub('', line)
+        clean = _TIMESTAMP_RE.sub('', clean)
         event = None
 
         # ── indented / property line ──────────────────────────
