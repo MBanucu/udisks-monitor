@@ -24,13 +24,13 @@ class UdisksMonitor(threading.Thread):
         super().__init__(daemon=True)
         self.bus = bus or EventBus()
         self.ready = threading.Event()
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self._parser = MonitorParser()
         self._proc = None
 
     def stop(self):
         """Signal the monitor loop to exit and terminate the subprocess."""
-        self._stop.set()
+        self._stop_event.set()
         if self._proc is not None:
             self._proc.terminate()
 
@@ -60,7 +60,7 @@ class UdisksMonitor(threading.Thread):
 
         try:
             for line in proc.stdout:
-                if self._stop.is_set():
+                if self._stop_event.is_set():
                     break
                 self._feed(line)
         finally:
