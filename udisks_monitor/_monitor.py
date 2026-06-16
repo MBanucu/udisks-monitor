@@ -26,10 +26,13 @@ class UdisksMonitor(threading.Thread):
         self.ready = threading.Event()
         self._stop = threading.Event()
         self._parser = MonitorParser()
+        self._proc = None
 
     def stop(self):
         """Signal the monitor loop to exit and terminate the subprocess."""
         self._stop.set()
+        if self._proc is not None:
+            self._proc.terminate()
 
     def run(self):
         try:
@@ -39,6 +42,7 @@ class UdisksMonitor(threading.Thread):
                 stderr=subprocess.DEVNULL,
                 text=True,
             )
+            self._proc = proc
         except Exception:
             self.ready.set()
             return
