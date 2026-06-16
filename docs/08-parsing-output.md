@@ -1,71 +1,107 @@
 # 08 — Parsing Monitor Output
 
-`unmount-image` parses `udisksctl monitor` output with a **stateful
+`udisks-monitor` parses `udisksctl monitor` output with a **stateful
 line-by-line parser**. This document explains the parsing strategy and design
 rationale.
 
 ## Design constraints
 
 1. **Real-time**: events must be detected as lines arrive (no buffering).
-2. **Minimal dependencies**: standard library only (`re`, `threading`).
+2. **Lightweight**: minimal non-stdlib dependencies (`strip-ansi` only).
 3. **Fault-tolerant**: ANSI codes, warnings on stderr, and empty lines must
    not break parsing.
-4. **Selective**: only two event types are needed — `filesystem-mount` jobs
-   and `BackingFile` property changes.
+4. **Complete**: all 7 UDisks2 event types are captured.
 
 ## Architecture
 
 ```
-udisksctl monitor --stdout--> _UdisksMonitor thread --line-by-line--> _MonitorParser --events--> _handle_event
+udisksctl monitor --stdout--> UdisksMonitor thread --line-by-line--> MonitorParser --events--> EventBus.publish()
 ```
 
-### Step 1: ANSI stripping
+### Step 1: Timestamp and ANSI stripping
+
+Lines arrive with a `HH:MM:SS.mmm: ` timestamp prefix and optional ANSI
+colour codes:
+
+```
+\x1b[1m\x1b[33m12:03:36.774:\x1b[0m \x1b[1m\x1b[34m/org/.../loop3:\x1b[0m ...
+```
+
+The parser strips both:
 
 ```python
-_ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+from strip_ansi import strip_ansi
 
-clean = _ANSI_RE.sub('', line)
+def feed(self, line: str):
+    clean = strip_ansi(line)            # remove ANSI SGR sequences
+    m = _TIMESTAMP_RE.match(clean)
+    if m:
+        self._ts = m.group(0)[:-2]      # capture HH:MM:SS.mmm
+    clean = _TIMESTAMP_RE.sub('', clean) # remove timestamp prefix
 ```
 
-All SGR sequences are removed before pattern matching. This simplifies the
-rest of the parser.
+The timestamp is captured **before** stripping and attached to every event
+as `event.timestamp`.  It persists across indented lines that belong to the
+same top-level event (indented property lines carry no timestamp of their own).
 
 ### Step 2: State tracking
 
-`_MonitorParser` is a stateful object with four slots:
+`MonitorParser` is a stateful object with the following slots:
 
 | Slot | Type | Purpose |
 |------|------|---------|
+| `_ts` | str | Current timestamp (persists across indented lines) |
+| `_cur_device` | str | Last-seen block device name |
+| `_cur_interface` | str | Last-seen D-Bus interface |
+| `_cur_object_path` | str | Last-seen object path |
 | `_in_job` | bool | True while inside a job block |
+| `_job_id` | int | Current job's numeric identifier |
+| `_job_path` | str | Current job's object path |
 | `_job_op` | str | Accumulated `Operation` value |
 | `_job_objects` | str | Accumulated `Objects` value |
-| `_emitted` | bool | Prevents re-emitting the same job |
-| `_current_device` | str | Last-seen block device name |
+| `_job_emitted` | bool | Prevents re-emitting the same job |
+| `_iface_buf` | _BlockBuffer | Buffers `InterfaceAdded` properties |
 
-### Step 3: Job entry/exit
+### Step 3: Top-level line dispatch
 
-```
-Added /org/.../jobs/N    → _in_job = True, reset accumulators
-Removed /org/.../jobs/N  → _in_job = False
-```
+Top-level lines (0 indent) are dispatched by pattern matching:
 
-### Step 4: Job property accumulation
+| Pattern | Match | Event emitted |
+|---------|-------|---------------|
+| `Added /org/.../jobs/N` | `startswith` | `JobAdded` |
+| `Removed /org/.../jobs/N` | `startswith` | `JobRemoved` |
+| `...Job::Completed (true, '')` | `in` substring | `JobCompleted` |
+| `Added interface org.freedesktop.UDisks2.X` | `in` substring | (buffered, emitted on next top-level line as `InterfaceAdded`) |
+| `Removed interface org.freedesktop.UDisks2.X` | `in` substring | `InterfaceRemoved` |
+| `Properties Changed` | `in` substring | (sets device/interface context, actual property events come from indented lines) |
 
-While `_in_job` and not yet emitted:
+### Step 4: Indented line handling
+
+**2-space indented** lines under a device context emit `DevicePropertyChanged`:
 
 ```python
-_OP_RE   = re.compile(r'Operation:\s+(\S+)')
-_OBJ_RE  = re.compile(r'Objects:\s+(\S+)')
+if self._cur_device:
+    colon = clean.find(':')
+    if colon != -1:
+        prop = clean[2:colon].strip()
+        value = clean[colon + 1:].strip()
+        return DevicePropertyChanged(
+            object_path=self._cur_object_path,
+            device_name=self._cur_device,
+            interface=self._cur_interface,
+            property=prop,
+            value=value,
+            timestamp=self._ts,
+        )
 ```
 
-When **both** `Operation` and `Objects` have been captured, an event is emitted:
+**4-space indented** lines inside a job block are scanned for `Operation`
+and `Objects` fields.  When both are captured, `JobProperties` is emitted.
 
-```python
-return ('job', {'op': 'filesystem-mount',
-                'objects': '/org/.../block_devices/loop0'})
-```
-
-Subsequent lines in the same job are ignored (`_emitted = True`).
+**Indented lines inside an `InterfaceAdded` block** (between the `Added
+interface` header and the next top-level line) accumulate property key/value
+pairs.  These are flushed as an `InterfaceAdded` event when the next
+top-level line arrives.
 
 ### Step 5: Device name extraction
 
@@ -81,98 +117,41 @@ def _device_name_from_path(line):
     return rest.strip()
 ```
 
-This extracts `loop0` from paths like:
+Extracts `loop0` from paths like:
 - `/org/freedesktop/UDisks2/block_devices/loop0:`
-- `/org/freedesktop/UDisks2/block_devices/loop0` (no colon)
+- `/org/freedesktop/UDisks2/block_devices/loop0`
 
-The extracted name sets `_current_device`.
-
-### Step 6: Property line matching
-
-While `_current_device` is set:
-
-```python
-_BACKING_RE = re.compile(r'BackingFile:\s+(.*)')
-```
-
-If a line matches, emit:
-
-```python
-('loop_prop', {
-    'device': 'loop0',
-    'prop': 'BackingFile',
-    'value': '/tmp/img'  # or '' if empty
-})
-```
-
-### Step 7: Event handling
-
-`_UdisksMonitor._handle_event` filters events:
-
-```python
-if etype == 'job':
-    if (data['op'] == 'filesystem-mount' and
-            self._name in data['objects']):
-        self.mount_detected.set()
-
-elif etype == 'loop_prop':
-    if (data['device'] == self._name and
-            data['prop'] == 'BackingFile' and
-            not data['value']):
-        self.backing_cleared.set()
-```
+The extracted name sets `_cur_device`.
 
 ## Parsing edge cases
 
-### Job objects matches device name substring
+### Timestamp on indented lines
 
-The `Objects` field contains a full object path like
-`/org/.../block_devices/loop0`. Using `in` to match the device name could
-falsely match `loop0` inside `loop10`:
-
-```
-Objects: .../block_devices/loop10  ← would match 'loop0' via 'in'
-```
-
-**Mitigation**: the object path uses the exact kernel name. A `loop10` is
-`/block_devices/loop10`, not `loop1` followed by `0`. But to be safe, a
-stricter match like `f'/block_devices/{name}' in objects` would be more
-robust.
-
-### Multi-line property values
-
-`BackingFile` is always a single line. Other properties like `Symlinks` span
-multiple lines. Since `_MonitorParser` only looks at `BackingFile`, multi-line
-values are not a concern for this parser. A general-purpose parser would need
-to handle continuation lines.
-
-### Empty BackingFile vs whitespace
-
-```
-  BackingFile:
-  BackingFile:          (trailing spaces)
-  BackingFile:          
-```
-
-All should be treated as empty. The regex `BackingFile:\s+(.*)` with `.strip()`
-on the captured group handles this correctly: all three produce `''`.
+Only top-level lines carry timestamps.  The parser persists `_ts` from the
+last timestamped line, so indented property events get the timestamp of their
+parent header.
 
 ### Job Added/Removed without Complete
 
-If a job is cancelled, `Removed` may appear without a prior `::Completed`. The
-parser correctly exits the job context on `Removed`.
+If a job is cancelled, `Removed` may appear without a prior `::Completed`.
+The parser correctly exits the job context on `Removed`.
 
 ### Rapidly consecutive jobs
 
-Jobs can be Added and Removed in quick succession. The parser tracks one job
-at a time. If a second `Added` appears before the first `Removed`, the state
-is reset — the first job's data is discarded. In practice, UDisks2 serializes
-jobs per-object, so this is extremely rare.
+Jobs can be Added and Removed in quick succession.  The parser tracks one job
+at a time.  If a second `Added` appears before the first `Removed`, the state
+is reset.  In practice, UDisks2 serializes jobs per-object.
+
+### Multi-line property values
+
+Properties like `Symlinks` span multiple continuation lines.  Each
+continuation line is captured as a separate `DevicePropertyChanged` event with
+the same property name — consumers should coalesce them.
 
 ### ANSI on stderr
 
-The monitor sometimes prints ANSI-coloured warnings to stderr. Since
-`_UdisksMonitor` redirects stderr to `subprocess.DEVNULL`, these are silently
+The monitor sometimes prints ANSI-coloured warnings to stderr.  Since
+`UdisksMonitor` redirects stderr to `subprocess.DEVNULL`, these are silently
 discarded.
 
 ## Alternative approaches
@@ -183,7 +162,8 @@ discarded.
 2. **`dbus-monitor`**: similar text-based approach but no UDisks2-specific
    formatting.
 3. **Polling `/sys/block/loopN/loop/backing_file`**: simpler, no monitor
-   needed, but event-driven is more responsive for the detach race.
+   needed, but event-driven is more responsive.
 
-The text-parsing approach was chosen for `unmount-image` because it has zero
-dependencies beyond the Python standard library.
+The text-parsing approach was chosen because it has a single lightweight
+dependency (`strip-ansi`) and works with `udisksctl monitor` as-is, without
+requiring D-Bus bindings.

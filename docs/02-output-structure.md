@@ -37,7 +37,7 @@ The output uses ANSI SGR (Select Graphic Rendition) sequences for readability:
 | `\x1b[0m` | Reset | End of coloured span |
 
 ANSI sequences appear inline and must be stripped before parsing property
-values. The pattern `\x1b\[[0-9;]*m` matches all SGR codes.
+values. The `udisks-monitor` library uses the `strip-ansi` library for this.
 
 Example raw line (ANSI visible):
 

@@ -72,7 +72,7 @@ because it only receives signals.
 - **Scripting**: watch for device appearance/disappearance.
 - **Automation**: detect when a filesystem is mounted so you can act on it.
 - **Detach confirmation**: confirm that a loop device's backing file has been
-  cleared (used by `unmount-image`).
+  cleared (used by `udisks-monitor`).
 
 ## Example session
 

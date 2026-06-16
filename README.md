@@ -14,9 +14,9 @@ Event-driven pub/sub wrapper around `udisksctl monitor` (Linux).
 [![Downloads/month](https://pepy.tech/badge/udisks-monitor/month)](https://pepy.tech/project/udisks-monitor)
 [![Downloads/week](https://pepy.tech/badge/udisks-monitor/week)](https://pepy.tech/project/udisks-monitor)
 
-Zero dependencies. Parses the human-readable output of `udisksctl monitor`
-into typed event dataclasses and dispatches them to subscribers via an
-in-process event bus.
+One lightweight dependency (`strip-ansi`). Parses the human-readable output of
+`udisksctl monitor` into typed event dataclasses with wall-clock timestamps,
+dispatching to subscribers via an in-process event bus.
 
 ## Install
 
@@ -56,6 +56,9 @@ mon.join()
 | `JobProperties` | The operation and target objects of a job |
 | `JobCompleted` | A job finished (success/failure) |
 | `JobRemoved` | A job object was torn down |
+
+All events carry a `timestamp: str` field with the `HH:MM:SS.mmm` wall-clock
+time from `udisksctl monitor`.
 
 ## Subscription filters
 

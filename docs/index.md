@@ -30,9 +30,9 @@ and property mutations on a running Linux system.
 - **D-Bus**: connects to `org.freedesktop.UDisks2` on the system bus
 - **Requires**: no special privileges — polkit authorises read-only monitoring for active local sessions
 
-## Relationship to unmount-image
+## Relationship to udisks-monitor
 
-The `unmount-image` Python library uses `udisksctl monitor` inside the
-`_UdisksMonitor` backend thread to confirm that a loop device has been fully
-detached (its `BackingFile` property becomes empty) and to detect if the desktop
-auto-mounter re-mounts a filesystem during the detach sequence.
+The `udisks-monitor` Python library wraps `udisksctl monitor` in a background
+thread with an event-driven pub/sub architecture.  It provides typed event
+dataclasses for all 7 UDisks2 event types and an `EventBus` with subscription
+filtering by type, device, interface, operation, and property.
