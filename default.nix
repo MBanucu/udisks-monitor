@@ -5,6 +5,7 @@
 , src
 , udisks2
 , dosfstools
+, strip-ansi
 }:
 buildPythonPackage rec {
   pname = "udisks-monitor";
@@ -16,7 +17,7 @@ buildPythonPackage rec {
   nativeBuildInputs = [ setuptools ];
   buildInputs = [ ];
   nativeCheckInputs = [ udisks2 dosfstools ];
-  propagatedBuildInputs = [ ];
+  propagatedBuildInputs = [ strip-ansi ];
 
   doCheck = true;
   pythonImportsCheck = [ "udisks_monitor" ];
