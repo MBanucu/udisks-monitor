@@ -2,6 +2,8 @@
 
 import re
 
+from strip_ansi import strip_ansi
+
 from udisks_monitor._events import (
     DevicePropertyChanged,
     InterfaceAdded,
@@ -12,7 +14,6 @@ from udisks_monitor._events import (
     JobRemoved,
 )
 
-_ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 _TIMESTAMP_RE = re.compile(r'^\d{2}:\d{2}:\d{2}\.\d{3}: ')
 _BACKING_RE = re.compile(r'BackingFile:\s+(.*)')
 _OP_RE = re.compile(r'Operation:\s+(\S+)')
@@ -108,7 +109,7 @@ class MonitorParser:
         self._ts = ''
 
     def feed(self, line: str):
-        clean = _ANSI_RE.sub('', line)
+        clean = strip_ansi(line)
         m = _TIMESTAMP_RE.match(clean)
         if m:
             self._ts = m.group(0)[:-2]
