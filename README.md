@@ -2,6 +2,18 @@
 
 Event-driven pub/sub wrapper around `udisksctl monitor` (Linux).
 
+[![PyPI version](https://img.shields.io/pypi/v/udisks-monitor)](https://pypi.org/project/udisks-monitor/)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://www.python.org/)
+[![License](https://img.shields.io/github/license/MBanucu/udisks-monitor)](LICENSE)
+[![OS](https://img.shields.io/badge/OS-Linux-blue)](https://github.com/MBanucu/udisks-monitor)
+
+[![CI](https://img.shields.io/github/actions/workflow/status/MBanucu/udisks-monitor/test.yml?branch=main)](https://github.com/MBanucu/udisks-monitor/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/MBanucu/udisks-monitor/branch/main/graph/badge.svg)](https://codecov.io/gh/MBanucu/udisks-monitor)
+
+[![Downloads total](https://pepy.tech/badge/udisks-monitor)](https://pepy.tech/project/udisks-monitor)
+[![Downloads/month](https://pepy.tech/badge/udisks-monitor/month)](https://pepy.tech/project/udisks-monitor)
+[![Downloads/week](https://pepy.tech/badge/udisks-monitor/week)](https://pepy.tech/project/udisks-monitor)
+
 Zero dependencies. Parses the human-readable output of `udisksctl monitor`
 into typed event dataclasses and dispatches them to subscribers via an
 in-process event bus.
