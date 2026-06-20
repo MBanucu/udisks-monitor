@@ -79,7 +79,7 @@ class TestAllEventTypes(unittest.TestCase):
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
 
-        recorder.wait_for_type(InterfaceRemoved, timeout=5)
+        recorder.wait_for_type(JobCompleted, timeout=5)
 
         mon.stop()
         mon.join(timeout=5)
