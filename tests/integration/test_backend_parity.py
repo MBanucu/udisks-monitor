@@ -57,7 +57,7 @@ def _collect_events(backend):
     return events
 
 
-@unittest.skipIf(SKIP_PARITY, 'D-Bus backend overloads UDisks2 daemon in CI')
+@unittest.skipIf(SKIP_PARITY, 'running both backends in one process overloads UDisks2 in CI')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestBackendParity(unittest.TestCase):
 

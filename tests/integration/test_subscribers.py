@@ -7,7 +7,7 @@ import unittest
 from udisks_monitor import (DevicePropertyChanged, JobCompleted,
                             UdisksMonitor)
 
-from tests.integration.helpers import (cleanup, make_image, test_monitor,
+from tests.integration.helpers import (cleanup, make_image,
                                        udisksctl_available)
 
 
@@ -15,7 +15,7 @@ from tests.integration.helpers import (cleanup, make_image, test_monitor,
 class TestSubscriberBehavior(unittest.TestCase):
 
     def setUp(self):
-        self.mon = test_monitor()
+        self.mon = UdisksMonitor()
 
     def tearDown(self):
         self.mon.stop()
