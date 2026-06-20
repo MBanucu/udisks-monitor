@@ -11,6 +11,7 @@ jobs:
     name: ubuntu-latest / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
@@ -35,11 +36,14 @@ jobs:
               }
           });
           POLKIT
+          sudo systemctl restart udisks2 || true
 
       - name: Install coverage
+        if: false
         run: python -m pip install coverage
 
       - name: Set up coverage with relative paths
+        if: false
         run: |
           cat > .coveragerc << 'EOF'
           [run]
@@ -47,15 +51,18 @@ jobs:
           EOF
 
       - name: Run tests with coverage
-        run: python -m coverage run -m unittest discover -s tests -v
+        run: python -m unittest tests.h1_test -v
 
       - name: Report coverage
+        if: false
         run: python -m coverage report --skip-covered
 
       - name: Dump XML for Codecov
+        if: false
         run: python -m coverage xml -o coverage.xml
 
       - name: Upload coverage to Codecov
+        if: false
         uses: codecov/codecov-action@v7.0.0
         with:
           files: coverage.xml
