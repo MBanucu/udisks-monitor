@@ -49,7 +49,29 @@ def _create_image():
     return path
 
 
+def _ensure_session_bus():
+    """Ensure DBUS_SESSION_BUS_ADDRESS is set, starting a bus if needed."""
+    if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        print(f"Using existing session bus: {os.environ['DBUS_SESSION_BUS_ADDRESS']}")
+        return
+    print("No session bus found, launching via dbus-launch...")
+    p = subprocess.run(
+        ["dbus-launch", "--sh-syntax"],
+        capture_output=True, text=True, timeout=10,
+    )
+    for line in p.stdout.splitlines():
+        if line.startswith("DBUS_SESSION_BUS_ADDRESS="):
+            os.environ["DBUS_SESSION_BUS_ADDRESS"] = line.split("=", 1)[1].strip(";\"'")
+        elif line.startswith("DBUS_SESSION_BUS_PID="):
+            os.environ["DBUS_SESSION_BUS_PID"] = line.split("=", 1)[1].strip(";\"'")
+    print(f"Started session bus: {os.environ['DBUS_SESSION_BUS_ADDRESS']}")
+
+
 class TestActivationOrder(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        _ensure_session_bus()
 
     def test_before_connect_first_then_activate(self):
         """BEFORE: connect to D-Bus first, then trigger UDisks2 activation."""
@@ -63,7 +85,7 @@ class TestActivationOrder(unittest.TestCase):
         delete_t = None
         signal_count = [0]
 
-        async def _run():
+        async def _async_main():
             nonlocal loop_rc, loop_t, delete_rc, delete_t
             bus = await _connect_and_add_match(signal_count)
 
@@ -76,7 +98,7 @@ class TestActivationOrder(unittest.TestCase):
 
             bus.disconnect()
 
-        asyncio.run(_run())
+        asyncio.run(_async_main())
 
         print(f"Signal count received: {signal_count[0]}")
         print(f"loop-setup rc={loop_rc} time={loop_t:.3f}s")
@@ -104,7 +126,7 @@ class TestActivationOrder(unittest.TestCase):
         delete_t = None
         signal_count = [0]
 
-        async def _run():
+        async def _async_main():
             nonlocal loop_rc, loop_t, delete_rc, delete_t
             bus = await _connect_and_add_match(signal_count)
 
@@ -117,7 +139,7 @@ class TestActivationOrder(unittest.TestCase):
 
             bus.disconnect()
 
-        asyncio.run(_run())
+        asyncio.run(_async_main())
 
         print(f"Signal count received: {signal_count[0]}")
         print(f"loop-setup rc={loop_rc} time={loop_t:.3f}s")
