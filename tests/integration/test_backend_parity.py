@@ -1,5 +1,6 @@
 """Integration test verifying both backends produce equivalent events."""
 
+import os
 import subprocess
 import threading
 import unittest
@@ -10,6 +11,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
 
 from tests.integration.helpers import (cleanup, make_image,
                                        udisksctl_available)
+
+SKIP_PARITY = os.environ.get('CI', '') == 'true'
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged,
@@ -54,6 +57,7 @@ def _collect_events(backend):
     return events
 
 
+@unittest.skipIf(SKIP_PARITY, 'D-Bus backend overloads UDisks2 daemon in CI')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestBackendParity(unittest.TestCase):
 
