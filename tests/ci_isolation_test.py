@@ -1,7 +1,7 @@
-"""Diagnostic: are CI matrix jobs isolated (separate VMs) or shared?
+"""Diagnostic: is UDisks2 shared (single instance) or per-job activation?
 
-Checks hostname, UDisks2 PID, D-Bus daemon PID, and D-Bus
-machine ID across jobs to determine if they share a host.
+Checks UDisks2 D-Bus unique name and parent PID to determine if
+multiple matrix jobs share one UDisks2 daemon or each gets its own.
 """
 
 import os
@@ -19,33 +19,49 @@ class TestCIIsolation(unittest.TestCase):
     def test_host_identity(self):
         host = socket.gethostname()
         print(f'\n  hostname: {host}')
-        print(f'  runner:   {os.environ.get("RUNNER_NAME", "?")}')
 
-    def test_udisks2_state(self):
-        result = _sh('pidof udisksd 2>/dev/null || echo "not running"')
-        print(f'\n  udisksd PID: {result.stdout.strip()}')
+    def test_udisks2_dbus_name(self):
+        r = _sh("busctl --system call org.freedesktop.DBus "
+                "/org/freedesktop/DBus org.freedesktop.DBus "
+                "GetNameOwner s org.freedesktop.UDisks2 2>/dev/null "
+                "|| echo 'FAIL'")
+        print(f'\n  UDisks2 D-Bus owner: {r.stdout.strip()}')
 
-    def test_dbus_machine_id(self):
-        result = _sh('cat /etc/machine-id 2>/dev/null || cat /var/lib/dbus/machine-id 2>/dev/null || echo "not found"')
-        print(f'\n  D-Bus machine-id: {result.stdout.strip()}')
+    def test_udisks2_pids_and_parent(self):
+        r = _sh("ps --no-headers -eo pid,ppid,args 2>/dev/null | "
+                "grep '[u]disksd' | head -10 || echo 'no udisksd'")
+        print(f'\n  udisksd processes:')
+        for line in r.stdout.strip().split('\n'):
+            print(f'    {line}')
 
-    def test_dbus_daemon_pid(self):
-        result = _sh('pidof dbus-daemon 2>/dev/null || echo "not found"')
-        print(f'\n  dbus-daemon PID: {result.stdout.strip()}')
+    def test_udisks2_systemctl_status(self):
+        r = _sh("systemctl status udisks2 2>/dev/null | head -15 || echo 'not a service'")
+        print(f'\n  udisks2 service status:')
+        for line in r.stdout.strip().split('\n'):
+            print(f'    {line}')
 
-    def test_concurrent_file_touch(self):
-        path = '/tmp/ci-isolation-check'
+    def test_udisks2_activation_count(self):
+        path = '/tmp/ci-udisks-names'
+        name = _sh("busctl --system call org.freedesktop.DBus "
+                   "/org/freedesktop/DBus org.freedesktop.DBus "
+                   "GetNameOwner s org.freedesktop.UDisks2 2>/dev/null "
+                   "|| echo 'FAIL'").stdout.strip()
+        host = socket.gethostname()
         with open(path, 'a') as f:
-            f.write(f'{socket.gethostname()}\n')
+            f.write(f'[{host}] {name}\n')
         with open(path) as f:
-            lines = f.read().strip().split('\n')
-        print(f'\n  /tmp/ci-isolation-check lines: {len(lines)}')
-        for i, line in enumerate(lines):
-            print(f'    [{i}] {line}')
+            content = f.read().strip()
+        lines = [l for l in content.split('\n') if l]
+        print(f'\n  /tmp/ci-udisks-names ({len(lines)} entries):')
+        for l in lines:
+            print(f'    {l}')
         if len(lines) > 1:
-            print(f'  ** SHARED HOST detected: {len(lines)} runners wrote to same file **')
-        else:
-            print('  isolated runner (single writer)')
+            unique = set(l.split('] ', 1)[1] for l in lines if '] ' in l)
+            print(f'  unique D-Bus names: {unique}')
+            if len(unique) > 1:
+                print('  ** MULTIPLE UDisks2 instances detected **')
+            else:
+                print('  ** SAME UDisks2 instance across all jobs **')
 
 
 if __name__ == '__main__':
