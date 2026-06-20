@@ -10,6 +10,7 @@ from dbus_fast.aio import MessageBus as _AioMessageBus
 from dbus_fast import BusType as _BusType
 from dbus_fast import Message as _Message
 from dbus_fast import MessageType as _MessageType
+from dbus_fast.signature import Variant as _Variant
 
 from udisks_monitor._backends._base import _Backend
 from udisks_monitor._events import (
@@ -30,6 +31,12 @@ def _device_from_path(path: str) -> str:
     if idx == -1:
         return ''
     return path[idx + len(_BLOCK_DEVICES):]
+
+
+def _unwrap(value):
+    if isinstance(value, _Variant):
+        return value.value
+    return value
 
 
 def _timestamp() -> str:
@@ -113,7 +120,7 @@ class _DBusBackend(_Backend):
                 job_id = int(object_path.rsplit('/', 1)[1])
                 self._publish(JobAdded(
                     job_path=object_path, job_id=job_id, timestamp=ts))
-                operation = props.get('Operation', '')
+                operation = _unwrap(props.get('Operation', ''))
                 objects_list = props.get('Objects', [])
                 objects = ' '.join(objects_list) if isinstance(objects_list, list) else str(objects_list)
                 self._publish(JobProperties(
