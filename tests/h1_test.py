@@ -12,7 +12,7 @@ from dbus_fast.aio import MessageBus
 
 async def _connect_and_add_match(signal_count: list):
     """Connect to D-Bus and add a match rule for UDisks2 signals."""
-    bus = await MessageBus().connect()
+    bus = await MessageBus(bus_type="system").connect()
 
     def _on_signal(msg):
         signal_count[0] += 1
@@ -49,29 +49,7 @@ def _create_image():
     return path
 
 
-def _ensure_session_bus():
-    """Ensure DBUS_SESSION_BUS_ADDRESS is set, starting a bus if needed."""
-    if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
-        print(f"Using existing session bus: {os.environ['DBUS_SESSION_BUS_ADDRESS']}")
-        return
-    print("No session bus found, launching via dbus-launch...")
-    p = subprocess.run(
-        ["dbus-launch", "--sh-syntax"],
-        capture_output=True, text=True, timeout=10,
-    )
-    for line in p.stdout.splitlines():
-        if line.startswith("DBUS_SESSION_BUS_ADDRESS="):
-            os.environ["DBUS_SESSION_BUS_ADDRESS"] = line.split("=", 1)[1].strip(";\"'")
-        elif line.startswith("DBUS_SESSION_BUS_PID="):
-            os.environ["DBUS_SESSION_BUS_PID"] = line.split("=", 1)[1].strip(";\"'")
-    print(f"Started session bus: {os.environ['DBUS_SESSION_BUS_ADDRESS']}")
-
-
 class TestActivationOrder(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        _ensure_session_bus()
 
     def test_before_connect_first_then_activate(self):
         """BEFORE: connect to D-Bus first, then trigger UDisks2 activation."""
