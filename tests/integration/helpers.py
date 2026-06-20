@@ -3,7 +3,6 @@
 import os
 import subprocess
 import tempfile
-import time
 
 
 def udisksctl_available():
@@ -37,6 +36,5 @@ def cleanup(device, img_path):
                     '--no-user-interaction'], capture_output=True)
     subprocess.run(['udisksctl', 'loop-delete', '-b', device,
                     '--no-user-interaction'], capture_output=True)
-    time.sleep(0.3)
     if os.path.exists(img_path):
         os.unlink(img_path)
