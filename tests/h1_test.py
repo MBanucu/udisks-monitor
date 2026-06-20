@@ -7,12 +7,13 @@ import tempfile
 import time
 import unittest
 
+from dbus_fast import BusType
 from dbus_fast.aio import MessageBus
 
 
 async def _connect_and_add_match(signal_count: list):
     """Connect to D-Bus and add a match rule for UDisks2 signals."""
-    bus = await MessageBus(bus_type="system").connect()
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
 
     def _on_signal(msg):
         signal_count[0] += 1
