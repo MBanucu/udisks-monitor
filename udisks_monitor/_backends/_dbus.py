@@ -76,7 +76,7 @@ class _DBusBackend(_Backend):
             interface='org.freedesktop.DBus',
             member='AddMatch',
             signature='s',
-            body=['type=signal'],
+            body=['type=signal,sender=org.freedesktop.UDisks2'],
         ))
         if reply.message_type == _MessageType.ERROR:
             raise RuntimeError(
