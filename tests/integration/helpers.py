@@ -6,6 +6,22 @@ import tempfile
 import time
 
 
+def _ci():
+    return os.environ.get('CI', '') == 'true'
+
+
+def test_monitor(**kwargs):
+    """Return a UdisksMonitor suitable for the test environment.
+
+    In CI, defaults to the subprocess backend to avoid overloading
+    the UDisks2 daemon with persistent dbus-fast connections.
+    """
+    from udisks_monitor import UdisksMonitor
+    if _ci() and 'backend' not in kwargs:
+        kwargs['backend'] = 'subprocess'
+    return UdisksMonitor(**kwargs)
+
+
 def udisksctl_available():
     try:
         r = subprocess.run(['udisksctl', 'dump'], capture_output=True)
