@@ -8,6 +8,7 @@ import time
 import unittest
 
 from dbus_fast import BusType
+from dbus_fast import Message
 from dbus_fast.aio import MessageBus
 
 
@@ -19,16 +20,14 @@ async def _connect_and_add_match(signal_count: list):
         signal_count[0] += 1
 
     bus.add_message_handler(_on_signal)
-    await bus.call(
-        {
-            "destination": "org.freedesktop.DBus",
-            "path": "/org/freedesktop/DBus",
-            "interface": "org.freedesktop.DBus",
-            "member": "AddMatch",
-            "signature": "s",
-            "body": ["type=signal,sender=org.freedesktop.UDisks2"],
-        }
-    )
+    await bus.call(Message(
+        destination="org.freedesktop.DBus",
+        path="/org/freedesktop/DBus",
+        interface="org.freedesktop.DBus",
+        member="AddMatch",
+        signature="s",
+        body=["type=signal,sender=org.freedesktop.UDisks2"],
+    ))
 
     return bus
 
