@@ -1,7 +1,8 @@
 """Unit tests for the D-Bus backend signal translation."""
 
 import unittest
-from unittest.mock import MagicMock
+
+from dbus_fast.signature import Variant as _Variant
 
 from udisks_monitor._backends._dbus import _DBusBackend, _device_from_path
 from udisks_monitor._events import (
@@ -225,3 +226,58 @@ class TestObjectsFieldVariants(unittest.TestCase):
             {'org.freedesktop.UDisks2.Job': {}})
         jp = self.collector.find(JobProperties)[0]
         self.assertEqual(jp.objects, '')
+
+    def test_objects_is_variant_of_list(self):
+        self.be._on_interfaces_added(
+            '/org/freedesktop/UDisks2/jobs/1',
+            {'org.freedesktop.UDisks2.Job': {
+                'Operation': 'ata-smart-selftest',
+                'Objects': _Variant('as', [
+                    '/org/freedesktop/UDisks2/block_devices/sda',
+                    '/org/freedesktop/UDisks2/block_devices/sdb',
+                ]),
+            }})
+        jp = self.collector.find(JobProperties)[0]
+        self.assertIn('sda', jp.objects)
+        self.assertIn('sdb', jp.objects)
+
+    def test_objects_is_variant_of_string(self):
+        self.be._on_interfaces_added(
+            '/org/freedesktop/UDisks2/jobs/1',
+            {'org.freedesktop.UDisks2.Job': {
+                'Operation': _Variant('s', 'loop-delete'),
+                'Objects': _Variant('s',
+                                    '/org/freedesktop/UDisks2/block_devices/loop0'),
+            }})
+        jp = self.collector.find(JobProperties)[0]
+        self.assertEqual(jp.operation, 'loop-delete')
+        self.assertEqual(jp.objects,
+                         '/org/freedesktop/UDisks2/block_devices/loop0')
+
+
+class TestVariantUnwrapping(unittest.TestCase):
+    def setUp(self):
+        self.collector = _Collector()
+        self.be = _DBusBackend(self.collector.publish)
+
+    def test_interface_added_properties_unwrapped(self):
+        self.be._on_interfaces_added(
+            '/org/freedesktop/UDisks2/block_devices/loop0',
+            {'org.freedesktop.UDisks2.Filesystem': {
+                'MountPoints': _Variant('as', ['/run/media/user/VOL']),
+                'Size': _Variant('t', 0),
+            }})
+        ia = self.collector.find(InterfaceAdded)[0]
+        self.assertEqual(ia.properties,
+                         {'MountPoints': ['/run/media/user/VOL'], 'Size': 0})
+
+    def test_properties_changed_values_unwrapped(self):
+        self.be._on_properties_changed(
+            '/org/freedesktop/UDisks2/block_devices/loop0',
+            'org.freedesktop.UDisks2.Loop',
+            {'BackingFile': _Variant('s', '/tmp/img.img'),
+             'Autoclear': _Variant('b', True)},
+            [])
+        values = {e.property: e.value for e in self.collector.events}
+        self.assertEqual(values['BackingFile'], '/tmp/img.img')
+        self.assertTrue(values['Autoclear'] is True)

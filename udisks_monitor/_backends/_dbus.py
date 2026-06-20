@@ -121,7 +121,7 @@ class _DBusBackend(_Backend):
                 self._publish(JobAdded(
                     job_path=object_path, job_id=job_id, timestamp=ts))
                 operation = _unwrap(props.get('Operation', ''))
-                objects_list = props.get('Objects', [])
+                objects_list = _unwrap(props.get('Objects', []))
                 objects = ' '.join(objects_list) if isinstance(objects_list, list) else str(objects_list)
                 self._publish(JobProperties(
                     job_path=object_path, job_id=job_id,
@@ -130,7 +130,8 @@ class _DBusBackend(_Backend):
                 device = _device_from_path(object_path)
                 self._publish(InterfaceAdded(
                     object_path=object_path, device_name=device,
-                    interface=iface_name, properties=dict(props),
+                    interface=iface_name,
+                    properties={k: _unwrap(v) for k, v in props.items()},
                     timestamp=ts))
 
     def _on_interfaces_removed(self, object_path, interfaces):
@@ -158,8 +159,8 @@ class _DBusBackend(_Backend):
         for prop_name, value in changed.items():
             self._publish(DevicePropertyChanged(
                 object_path=object_path, device_name=device,
-                interface=iface_name, property=prop_name, value=value,
-                timestamp=ts))
+                interface=iface_name, property=prop_name,
+                value=_unwrap(value), timestamp=ts))
 
     def _on_job_completed(self, object_path, success, message):
         ts = _timestamp()
