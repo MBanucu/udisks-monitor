@@ -1,7 +1,7 @@
 """Integration test verifying both backends produce equivalent events."""
 
 import subprocess
-import time
+import threading
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
@@ -22,22 +22,14 @@ ALL_EVENT_TYPES = (
 )
 
 
-def _wait_for(cls, events, since, timeout=5):
-    """Poll *events* for an instance of *cls* appearing after index *since*."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        for i in range(since, len(events)):
-            if isinstance(events[i], cls):
-                return i
-            since = i + 1
-        time.sleep(0.05)
-    return None
-
-
 def _collect_events(backend):
     events = []
+    interface_added = threading.Event()
+    job_completed = threading.Event()
 
     mon = UdisksMonitor(backend=backend)
+    mon.subscribe(lambda _: interface_added.set(), event_type=InterfaceAdded)
+    mon.subscribe(lambda _: job_completed.set(), event_type=JobCompleted)
     mon.subscribe(lambda e: events.append(e))
     mon.start()
 
@@ -48,12 +40,11 @@ def _collect_events(backend):
 
     dev, img, _name = make_image()
     try:
-        after_setup = _wait_for(InterfaceAdded, events, 0, timeout=5)
-        if after_setup is None:
+        if not interface_added.wait(timeout=5):
             return None
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
-        if _wait_for(JobCompleted, events, after_setup, timeout=5) is None:
+        if not job_completed.wait(timeout=5):
             return None
     finally:
         cleanup(dev, img)
