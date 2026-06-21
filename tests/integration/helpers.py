@@ -6,6 +6,16 @@ import tempfile
 import time
 
 
+def _backend():
+    """Return the backend to use for integration tests.
+
+    Subprocess backend is preferred in CI because the D-Bus backend
+    creates persistent connections that contribute to UDisks2 overload
+    when many integration tests run in sequence.
+    """
+    return 'subprocess' if os.environ.get('CI', '') == 'true' else 'auto'
+
+
 def udisksctl_available():
     try:
         r = subprocess.run(['udisksctl', 'dump'], capture_output=True)
