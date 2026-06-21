@@ -1,9 +1,19 @@
-"""D-Bus backend — subscribes directly to UDisks2 signals via dbus-fast."""
+"""D-Bus backend — subscribes directly to UDisks2 signals via dbus-fast.
+
+Architecture 2 — thread-safe queued dispatch:
+  * Each subscriber gets its own ``queue.Queue`` and daemon thread.
+  * The D-Bus handler pushes event objects to matching subscriber
+    queues (non-blocking ``put``).
+  * Subscribers drain their own queues in dedicated threads.
+  * No subscriber callbacks run in the asyncio event-loop thread.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import queue
 import threading
+import traceback
 from datetime import datetime
 
 from dbus_fast.aio import MessageBus as _AioMessageBus
@@ -54,6 +64,7 @@ class _DBusBackend(_Backend):
         super().__init__(publish)
         self._loop = None
         self._stop_signal = None
+        self._subs: list[tuple] = []
 
     def run(self):
         loop = asyncio.new_event_loop()
@@ -91,6 +102,29 @@ class _DBusBackend(_Backend):
         if self._stop_signal is not None and \
                 self._loop is not None and not self._loop.is_closed():
             self._loop.call_soon_threadsafe(self._stop_signal.set)
+        for _, _, q in self._subs:
+            q.put(None)
+
+    # ── subscriber management ────────────────────────────────────
+
+    def add_subscriber(self, callback, event_type=None):
+        q = queue.Queue()
+        self._subs.append((callback, event_type, q))
+        t = threading.Thread(target=self._drain, args=(q, callback),
+                             daemon=True)
+        t.start()
+        return callback
+
+    @staticmethod
+    def _drain(q, callback):
+        while True:
+            evt = q.get()
+            if evt is None:
+                break
+            try:
+                callback(evt)
+            except Exception:
+                traceback.print_exc()
 
     # ── message routing ──────────────────────────────────────────
 
@@ -111,6 +145,11 @@ class _DBusBackend(_Backend):
 
     # ── signal handlers ──────────────────────────────────────────
 
+    def _dispatch(self, event):
+        for _, event_type, q in self._subs:
+            if event_type is None or isinstance(event, event_type):
+                q.put(event)
+
     def _on_interfaces_added(self, object_path, ifaces):
         ts = _timestamp()
         for iface_name, props in ifaces.items():
@@ -118,17 +157,17 @@ class _DBusBackend(_Backend):
                 continue
             if iface_name == 'org.freedesktop.UDisks2.Job':
                 job_id = int(object_path.rsplit('/', 1)[1])
-                self._publish(JobAdded(
+                self._dispatch(JobAdded(
                     job_path=object_path, job_id=job_id, timestamp=ts))
                 operation = _unwrap(props.get('Operation', ''))
                 objects_list = _unwrap(props.get('Objects', []))
                 objects = ' '.join(objects_list) if isinstance(objects_list, list) else str(objects_list)
-                self._publish(JobProperties(
+                self._dispatch(JobProperties(
                     job_path=object_path, job_id=job_id,
                     operation=operation, objects=objects, timestamp=ts))
             elif _BLOCK_DEVICES in object_path:
                 device = _device_from_path(object_path)
-                self._publish(InterfaceAdded(
+                self._dispatch(InterfaceAdded(
                     object_path=object_path, device_name=device,
                     interface=iface_name,
                     properties={k: _unwrap(v) for k, v in props.items()},
@@ -141,11 +180,11 @@ class _DBusBackend(_Backend):
                 continue
             if iface_name == 'org.freedesktop.UDisks2.Job':
                 job_id = int(object_path.rsplit('/', 1)[1])
-                self._publish(JobRemoved(
+                self._dispatch(JobRemoved(
                     job_path=object_path, job_id=job_id, timestamp=ts))
             elif _BLOCK_DEVICES in object_path:
                 device = _device_from_path(object_path)
-                self._publish(InterfaceRemoved(
+                self._dispatch(InterfaceRemoved(
                     object_path=object_path, device_name=device,
                     interface=iface_name, timestamp=ts))
 
@@ -157,7 +196,7 @@ class _DBusBackend(_Backend):
         device = _device_from_path(object_path)
         ts = _timestamp()
         for prop_name, value in changed.items():
-            self._publish(DevicePropertyChanged(
+            self._dispatch(DevicePropertyChanged(
                 object_path=object_path, device_name=device,
                 interface=iface_name, property=prop_name,
                 value=_unwrap(value), timestamp=ts))
@@ -165,6 +204,6 @@ class _DBusBackend(_Backend):
     def _on_job_completed(self, object_path, success, message):
         ts = _timestamp()
         job_id = int(object_path.rsplit('/', 1)[1])
-        self._publish(JobCompleted(
+        self._dispatch(JobCompleted(
             job_path=object_path, job_id=job_id,
             success=success, message=message, timestamp=ts))
