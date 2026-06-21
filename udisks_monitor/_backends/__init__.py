@@ -19,6 +19,7 @@ def _get_backend(name: str, publish: Callable[[Event], None]) -> _Backend:
         ``'dbus'`` — same as ``'auto'`` (direct D-Bus).
     """
     from udisks_monitor._backends._dbus import _DBusBackend
+    from udisks_monitor._backends._dbus_next import _DBusNextBackend
     from udisks_monitor._backends._subprocess import _SubprocessBackend
 
     if name == 'subprocess':
@@ -27,5 +28,8 @@ def _get_backend(name: str, publish: Callable[[Event], None]) -> _Backend:
     if name in ('auto', 'dbus'):
         return _DBusBackend(publish)
 
+    if name == 'dbus-next':
+        return _DBusNextBackend(publish)
+
     raise ValueError(
-        f"Unknown backend: {name!r}; expected 'auto', 'subprocess', or 'dbus'")
+        f"Unknown backend: {name!r}; expected 'auto', 'subprocess', 'dbus', or 'dbus-next'")
