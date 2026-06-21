@@ -37,14 +37,8 @@ jobs:
           });
           POLKIT
 
-      - name: Test subprocess-only parity
-        run: python -m unittest tests.parity_subprocess_only -v
-
-      - name: Test dbus-only parity
-        run: python -m unittest tests.parity_dbus_only -v
-
-      - name: Test single-monitor sequence
-        run: python -m unittest tests.parity_single_monitor -v
+      - name: Run all diagnostic test suites
+        run: python -m unittest tests.parity_subprocess_only tests.parity_dbus_only tests.parity_single_monitor -v
 
       - name: Install coverage
         if: false
