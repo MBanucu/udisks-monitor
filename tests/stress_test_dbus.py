@@ -283,7 +283,7 @@ class TestConnectionLeaks(unittest.TestCase):
         class _MonitorThread(threading.Thread):
             def __init__(self):
                 super().__init__(daemon=True)
-                self._stop = threading.Event()
+                self._done = threading.Event()
                 self.started = False
                 self.stopped = False
 
@@ -294,7 +294,7 @@ class TestConnectionLeaks(unittest.TestCase):
                     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
                     await bus.call(_ADD_MATCH)
                     self.started = True
-                    while not self._stop.is_set():
+                    while not self._done.is_set():
                         await asyncio.sleep(0.01)
                     bus.disconnect()
                     self.stopped = True
@@ -306,7 +306,7 @@ class TestConnectionLeaks(unittest.TestCase):
             t = _MonitorThread()
             t.start()
             time.sleep(0.1)
-            t._stop.set()
+            t._done.set()
             t.join(timeout=5)
             self.assertFalse(t.is_alive(),
                              f'iteration {i}: thread still alive after join')
