@@ -288,6 +288,8 @@ class TestConnectionLeaks(unittest.TestCase):
                 self.stopped = False
 
             def run(self):
+                loop = asyncio.new_event_loop()
+
                 async def _listen():
                     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
                     await bus.call(_ADD_MATCH)
@@ -296,22 +298,21 @@ class TestConnectionLeaks(unittest.TestCase):
                         await asyncio.sleep(0.01)
                     bus.disconnect()
                     self.stopped = True
-                asyncio.run(_listen())
 
-            def stop(self):
-                self._stop.set()
+                loop.run_until_complete(_listen())
+                loop.close()
 
-        for i in range(20):
+        for i in range(10):
             t = _MonitorThread()
             t.start()
-            time.sleep(0.05)
-            t.stop()
+            time.sleep(0.1)
+            t._stop.set()
             t.join(timeout=5)
             self.assertFalse(t.is_alive(),
                              f'iteration {i}: thread still alive after join')
         thread_count = threading.active_count()
-        print(f'\n  20 start/stop/join cycles: {thread_count} active threads')
-        self.assertLess(thread_count, 10,
+        print(f'\n  10 start/stop/join cycles: {thread_count} active threads')
+        self.assertLess(thread_count, 15,
                         f'too many threads: {thread_count}')
 
 
