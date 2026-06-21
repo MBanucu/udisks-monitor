@@ -20,7 +20,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, cleanup, make_image,
+from tests.integration.helpers import (_backend, _timeout, cleanup, make_image,
                                        udisksctl_available)
 
 ALL_EVENT_TYPES = (
@@ -92,7 +92,7 @@ class TestAllEventTypes(unittest.TestCase):
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
 
-        recorder.wait_for_type(JobCompleted, timeout=5)
+        recorder.wait_for_type(JobCompleted, timeout=_timeout())
 
         mon.stop()
         mon.join(timeout=5)

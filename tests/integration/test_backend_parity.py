@@ -9,7 +9,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (cleanup, make_image,
+from tests.integration.helpers import (_timeout, cleanup, make_image,
                                        udisksctl_available)
 
 SKIP_PARITY = os.environ.get('CI', '') == 'true'
@@ -43,11 +43,11 @@ def _collect_events(backend):
 
     dev, img, _name = make_image()
     try:
-        if not interface_added.wait(timeout=5):
+        if not interface_added.wait(timeout=_timeout()):
             return None
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
-        if not job_completed.wait(timeout=5):
+        if not job_completed.wait(timeout=_timeout()):
             return None
     finally:
         cleanup(dev, img)

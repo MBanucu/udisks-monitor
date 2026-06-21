@@ -16,6 +16,15 @@ def _backend():
     return 'subprocess' if os.environ.get('CI', '') == 'true' else 'auto'
 
 
+def _timeout():
+    """Return the event-wait timeout for integration tests.
+
+    CI VMs are slower — UDisks2 signals may take longer to propagate
+    through the subprocess monitor's stdout processing pipeline.
+    """
+    return 15 if os.environ.get('CI', '') == 'true' else 5
+
+
 def udisksctl_available():
     try:
         r = subprocess.run(['udisksctl', 'dump'], capture_output=True)
