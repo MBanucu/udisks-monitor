@@ -12,7 +12,6 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
 from tests.integration.helpers import (cleanup, make_image,
                                        udisksctl_available)
 
-SKIP_PARITY = os.environ.get('CI', '') == 'true'
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged,
@@ -23,6 +22,9 @@ ALL_EVENT_TYPES = (
     JobCompleted,
     JobRemoved,
 )
+
+
+@unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 
 
 def _collect_events(backend):
