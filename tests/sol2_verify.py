@@ -72,12 +72,13 @@ def _subprocess_cycle():
         mon.stop()
         mon.join(timeout=5)
         return 'no InterfaceAdded'
-    if not jc.wait(timeout=5):
-        _delete_image(dev, path)
+    # The loop-setup job may already be complete; the delete
+    # operation guarantees a fresh JobCompleted signal.
+    _delete_image(dev, path)
+    if not jc.wait(timeout=10):
         mon.stop()
         mon.join(timeout=5)
         return 'no JobCompleted'
-    _delete_image(dev, path)
     mon.stop()
     mon.join(timeout=5)
     return 'ok'

@@ -74,8 +74,13 @@ class _SubprocessBackend(_Backend):
             proc.wait()
 
     def _init_prefilter(self):
-        bus = getattr(self._publish, '__self__', None)
-        if bus is None or not hasattr(bus, 'subscribed_types'):
+        try:
+            bus = self._publish.__self__.bus
+        except (AttributeError, TypeError):
+            self._all_types_interesting = True
+            return
+
+        if not hasattr(bus, 'subscribed_types'):
             self._all_types_interesting = True
             return
 
