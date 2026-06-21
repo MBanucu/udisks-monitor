@@ -7,6 +7,8 @@ import threading
 from udisks_monitor._backends import _get_backend
 from udisks_monitor._pubsub import Callback, EventBus
 
+_COMPLEX_FILTERS = frozenset({'device', 'interface', 'operation', 'property_'})
+
 
 class UdisksMonitor(threading.Thread):
     """Background thread that monitors UDisks2 events and publishes them.
@@ -43,8 +45,14 @@ class UdisksMonitor(threading.Thread):
 
     def subscribe(self, callback: Callback, **filters) -> Callback:
         """Shortcut: ``monitor.subscribe(fn, device='loop0')``."""
+        if hasattr(self._backend, 'add_subscriber') and \
+                not (_COMPLEX_FILTERS & filters.keys()):
+            event_type = filters.get('event_type')
+            return self._backend.add_subscriber(callback, event_type)
         return self.bus.subscribe(callback, **filters)
 
     def on(self, event_type=None, **filters):
         """Shortcut decorator: ``@monitor.on(…, device='loop0')``."""
-        return self.bus.on(event_type, **filters)
+        def _decorator(fn):
+            return self.subscribe(fn, event_type=event_type, **filters)
+        return _decorator
