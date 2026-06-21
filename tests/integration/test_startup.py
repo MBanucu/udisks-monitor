@@ -5,7 +5,7 @@ import unittest
 
 from udisks_monitor import (DevicePropertyChanged, UdisksMonitor)
 
-from tests.integration.helpers import (cleanup, make_image,
+from tests.integration.helpers import (_backend, _timeout, cleanup, make_image,
                                        udisksctl_available)
 
 
@@ -13,7 +13,7 @@ from tests.integration.helpers import (cleanup, make_image,
 class TestStartupLifecycle(unittest.TestCase):
 
     def setUp(self):
-        self.mon = UdisksMonitor()
+        self.mon = UdisksMonitor(backend=_backend())
 
     def tearDown(self):
         self.mon.stop()
@@ -46,6 +46,6 @@ class TestStartupLifecycle(unittest.TestCase):
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)
 
-        self.assertTrue(received.wait(timeout=5),
+        self.assertTrue(received.wait(timeout=_timeout()),
                         'subscriber registered before start() did not fire')
         self.assertIsInstance(first_event[0], DevicePropertyChanged)
