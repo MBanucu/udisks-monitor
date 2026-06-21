@@ -1,82 +1,55 @@
-"""UdisksMonitor — spawns udisksctl monitor in a background thread."""
+"""UdisksMonitor — delegates to a pluggable backend in a background thread."""
 
 from __future__ import annotations
 
-import subprocess
 import threading
 
-from udisks_monitor._events import Event
-from udisks_monitor._parser import MonitorParser
+from udisks_monitor._backends import _get_backend
 from udisks_monitor._pubsub import Callback, EventBus
 
 
 class UdisksMonitor(threading.Thread):
-    """Background thread that runs ``udisksctl monitor`` and publishes events.
+    """Background thread that monitors UDisks2 events and publishes them.
 
     Parameters
     ----------
     bus:
         The :class:`EventBus` to publish events to.  A default bus is
         created if not provided.
+    backend:
+        ``'auto'`` (default) — try the D-Bus backend, fall back to
+        the subprocess backend if ``dbus-fast`` is unavailable.
+        ``'subprocess'`` — always spawn ``udisksctl monitor`` and
+        parse its text output.
+        ``'dbus'`` — subscribe directly to UDisks2 D-Bus signals
+        (requires ``pip install udisks-monitor[dbus]``).
     """
 
-    def __init__(self, bus: EventBus | None = None):
+    def __init__(self, bus: EventBus | None = None, backend: str = 'auto'):
         super().__init__(daemon=True)
         self.bus = bus or EventBus()
-        self.ready = threading.Event()
-        self._stop_event = threading.Event()
-        self._parser = MonitorParser()
-        self._proc = None
+        self._backend = _get_backend(backend, self._publish)
+        self.ready = self._backend.ready
 
-    def stop(self):
-        """Signal the monitor loop to exit and terminate the subprocess."""
-        self._stop_event.set()
-        if self._proc is not None:
-            self._proc.terminate()
+    def _publish(self, event):
+        self.bus.publish(event)
 
     def run(self):
-        try:
-            proc = subprocess.Popen(
-                ['udisksctl', 'monitor'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-            )
-            self._proc = proc
-        except Exception:
-            self.ready.set()
-            return
+        self._backend.run()
 
-        try:
-            first = proc.stdout.readline()
-        except Exception:
-            proc.terminate()
-            proc.wait()
-            self.ready.set()
-            return
-
-        self.ready.set()
-        self._feed(first)
-
-        try:
-            for line in proc.stdout:
-                if self._stop_event.is_set():
-                    break
-                self._feed(line)
-        finally:
-            proc.stdout.close()
-            proc.terminate()
-            proc.wait()
-
-    def _feed(self, line: str):
-        event = self._parser.feed(line)
-        if event is not None:
-            self.bus.publish(event)
+    def stop(self):
+        """Signal the monitor loop to exit."""
+        self._backend.stop()
 
     def subscribe(self, callback: Callback, **filters) -> Callback:
         """Shortcut: ``monitor.subscribe(fn, device='loop0')``."""
+        if hasattr(self._backend, 'add_subscriber'):
+            event_type = filters.get('event_type')
+            return self._backend.add_subscriber(callback, event_type)
         return self.bus.subscribe(callback, **filters)
 
     def on(self, event_type=None, **filters):
         """Shortcut decorator: ``@monitor.on(…, device='loop0')``."""
-        return self.bus.on(event_type, **filters)
+        def _decorator(fn):
+            return self.subscribe(fn, event_type=event_type, **filters)
+        return _decorator

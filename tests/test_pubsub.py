@@ -6,6 +6,7 @@ from contextlib import redirect_stderr
 
 from udisks_monitor._events import (
     DevicePropertyChanged,
+    InterfaceAdded,
     InterfaceRemoved,
     JobCompleted,
     JobProperties,
@@ -163,3 +164,30 @@ class TestEventBus(unittest.TestCase):
         self.bus.publish(ev)
         self.assertEqual(len(results1), 1)
         self.assertEqual(len(results2), 1)
+
+    def test_subscribed_types_empty(self):
+        self.assertEqual(self.bus.subscribed_types, frozenset())
+
+    def test_subscribed_types_filtered(self):
+        self.bus.subscribe(lambda _: None, event_type=InterfaceAdded)
+        self.bus.subscribe(lambda _: None, event_type=JobCompleted)
+        self.assertEqual(
+            self.bus.subscribed_types,
+            frozenset({InterfaceAdded, JobCompleted}),
+        )
+
+    def test_subscribed_types_catch_all(self):
+        self.bus.subscribe(lambda _: None, event_type=InterfaceAdded)
+        self.bus.subscribe(lambda _: None)
+        self.assertIsNone(self.bus.subscribed_types)
+
+    def test_subscribed_types_string_event_type(self):
+        self.bus.subscribe(lambda _: None, event_type='filesystem-mount')
+        self.assertEqual(self.bus.subscribed_types, frozenset({JobProperties}))
+
+    def test_subscribed_types_tuple_with_string(self):
+        self.bus.subscribe(lambda _: None, event_type=(InterfaceAdded, 'filesystem-mount'))
+        self.assertEqual(
+            self.bus.subscribed_types,
+            frozenset({InterfaceAdded, JobProperties}),
+        )
