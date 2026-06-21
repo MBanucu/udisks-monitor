@@ -157,7 +157,14 @@ class TestRapidCloseReopen(unittest.TestCase):
                 mon.stop(); mon.join(timeout=5)
                 return 'not ready'
             dev, path = _make_image()
-            ia.wait(timeout=5)
+            if not ia.wait(timeout=5):
+                _delete_image(dev, path)
+                mon.stop(); mon.join(timeout=5)
+                return 'no InterfaceAdded'
+            if not jc.wait(timeout=5):
+                _delete_image(dev, path)
+                mon.stop(); mon.join(timeout=5)
+                return 'no JobCompleted'
             _delete_image(dev, path)
             mon.stop(); mon.join(timeout=5)
             return 'ok'
