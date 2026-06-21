@@ -37,6 +37,7 @@ def _run_one_backend(backend_label, backend_name):
         mon.join(timeout=5)
         return False, f'{backend_label}: monitor never became ready'
 
+    dev = img = None
     try:
         dev, img, _name = make_image()
         if not ia.wait(timeout=10):
@@ -48,7 +49,8 @@ def _run_one_backend(backend_label, backend_name):
     except Exception as exc:
         return False, f'{backend_label}: {type(exc).__name__}: {exc}'
     finally:
-        cleanup(dev, img)
+        if dev is not None:
+            cleanup(dev, img)
         mon.stop()
         mon.join(timeout=5)
 
