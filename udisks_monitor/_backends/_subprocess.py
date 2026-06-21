@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import subprocess
 import threading
-import time
 
 from udisks_monitor._backends._base import _Backend
 from udisks_monitor._parser import MonitorParser
@@ -41,8 +40,9 @@ class _SubprocessBackend(_Backend):
             return
 
         self._feed(first)
-        time.sleep(0.5)
-        self.ready.set()
+
+        timer = threading.Timer(0.5, self.ready.set)
+        timer.start()
 
         try:
             for line in proc.stdout:
@@ -50,6 +50,7 @@ class _SubprocessBackend(_Backend):
                     break
                 self._feed(line)
         finally:
+            timer.cancel()
             proc.stdout.close()
             proc.terminate()
             proc.wait()
