@@ -49,8 +49,8 @@ jobs:
           relative_files = True
           EOF
 
-      - name: Run failing tests only (diagnostic)
-        run: python -m unittest tests.ci_failing_tests -v
+      - name: Run repeat 10x diagnostic
+        run: python -m unittest tests.repeat_10x -v
 
       - name: Report coverage
         if: false
