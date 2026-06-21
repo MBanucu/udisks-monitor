@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import threading
 
@@ -31,31 +32,37 @@ class _SubprocessBackend(_Backend):
             self.ready.set()
             return
 
+        os.set_blocking(proc.stdout.fileno(), False)
+
         timer = threading.Timer(0.5, self.ready.set)
         timer.daemon = True
         timer.start()
 
         try:
-            first = proc.stdout.readline()
-        except Exception:
-            proc.terminate()
-            proc.wait()
-            timer.cancel()
-            self.ready.set()
-            return
-
-        self._feed(first)
-
-        try:
-            for line in proc.stdout:
-                if self._stop_event.is_set():
-                    break
-                self._feed(line)
+            self._read_loop(proc)
         finally:
             timer.cancel()
             proc.stdout.close()
             proc.terminate()
             proc.wait()
+
+    def _read_loop(self, proc):
+        fd = proc.stdout.fileno()
+        buf = ''
+        while not self._stop_event.is_set():
+            try:
+                data = os.read(fd, 4096)
+            except BlockingIOError:
+                self._stop_event.wait(0.05)
+                continue
+            except OSError:
+                break
+            if not data:
+                break
+            buf += data.decode('utf-8', errors='replace')
+            while '\n' in buf:
+                line, buf = buf.split('\n', 1)
+                self._feed(line + '\n')
 
     def _feed(self, line: str):
         event = self._parser.feed(line)
