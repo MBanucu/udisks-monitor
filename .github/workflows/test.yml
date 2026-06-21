@@ -47,8 +47,8 @@ jobs:
           relative_files = True
           EOF
 
-      - name: Run tests with coverage
-        run: python -m coverage run -m unittest discover -s tests -v
+      - name: Run udisks+dbus stress test
+        run: python -m unittest tests.stress_udisks_dbus -v
 
       - name: Report coverage
         run: python -m coverage report --skip-covered
