@@ -133,5 +133,26 @@ class EventBus:
         """Remove all subscribers."""
         self._subs.clear()
 
+    @property
+    def subscribed_types(self) -> 'frozenset | None':
+        """Return the set of event-type classes that have at least one
+        subscriber.  Returns ``None`` when any subscriber has no
+        *event_type* filter (catch-all), meaning *all* types are
+        interesting.
+        """
+        types: set[type] = set()
+        for _, filt in self._subs:
+            if filt._event_type is None:
+                return None
+            if isinstance(filt._event_type, tuple):
+                for t in filt._event_type:
+                    if isinstance(t, type):
+                        types.add(t)
+                    elif isinstance(t, str):
+                        types.add(JobProperties)
+            elif isinstance(filt._event_type, type):
+                types.add(filt._event_type)
+        return frozenset(types) if types else frozenset()
+
     def __len__(self) -> int:
         return len(self._subs)
