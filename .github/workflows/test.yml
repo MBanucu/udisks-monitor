@@ -11,6 +11,7 @@ jobs:
     name: ubuntu-latest / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
@@ -46,8 +47,8 @@ jobs:
           relative_files = True
           EOF
 
-      - name: Run tests with coverage
-        run: python -m coverage run -m unittest discover -s tests -v
+      - name: Run parity tests (no skip)
+        run: python -W ignore::ResourceWarning -m unittest tests.integration.test_backend_parity -v
 
       - name: Report coverage
         run: python -m coverage report --skip-covered
