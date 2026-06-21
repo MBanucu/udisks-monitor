@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import traceback
 from datetime import datetime
+from typing import Any
 
 from dbus_fast.aio import MessageBus as _AioMessageBus
 from dbus_fast import BusType as _BusType
@@ -15,6 +17,7 @@ from dbus_fast.signature import Variant as _Variant
 from udisks_monitor._backends._base import _Backend
 from udisks_monitor._events import (
     DevicePropertyChanged,
+    Event,
     InterfaceAdded,
     InterfaceRemoved,
     JobAdded,
@@ -51,9 +54,26 @@ class _DBusBackend(_Backend):
     """
 
     def __init__(self, publish):
-        super().__init__(publish)
+        self._subs: list[tuple[Any, type | None]] = []
+        super().__init__(self._dispatch)
+        self._external_publish = publish
         self._loop = None
         self._stop_signal = None
+
+    def add_subscriber(self, callback, event_type=None):
+        self._subs.append((callback, event_type))
+
+    def remove_subscriber(self, callback):
+        self._subs = [(cb, et) for cb, et in self._subs if cb is not callback]
+
+    def _dispatch(self, event):
+        for cb, et in self._subs:
+            if et is None or isinstance(event, et):
+                try:
+                    cb(event)
+                except Exception:
+                    traceback.print_exc()
+        self._external_publish(event)
 
     def run(self):
         loop = asyncio.new_event_loop()

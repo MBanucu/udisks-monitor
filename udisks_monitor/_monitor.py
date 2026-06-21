@@ -43,7 +43,14 @@ class UdisksMonitor(threading.Thread):
 
     def subscribe(self, callback: Callback, **filters) -> Callback:
         """Shortcut: ``monitor.subscribe(fn, device='loop0')``."""
-        return self.bus.subscribe(callback, **filters)
+        if hasattr(self._backend, 'add_subscriber'):
+            event_type = filters.pop('event_type', None)
+            self._backend.add_subscriber(callback, event_type)
+            if filters:
+                self.bus.subscribe(callback, **filters)
+        else:
+            self.bus.subscribe(callback, **filters)
+        return callback
 
     def on(self, event_type=None, **filters):
         """Shortcut decorator: ``@monitor.on(…, device='loop0')``."""
