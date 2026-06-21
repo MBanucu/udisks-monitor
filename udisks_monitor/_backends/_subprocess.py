@@ -17,6 +17,9 @@ class _SubprocessBackend(_Backend):
         self._parser = MonitorParser()
         self._proc = None
         self._stop_event = threading.Event()
+        self._pub = publish
+        self._all_types_interesting = True
+        self._subscribed_types: frozenset = frozenset()
 
     def run(self):
         try:
@@ -57,11 +60,27 @@ class _SubprocessBackend(_Backend):
             proc.terminate()
             proc.wait()
 
+    def _refresh_filter(self):
+        try:
+            bus = self._pub.__self__.bus
+        except (AttributeError, TypeError):
+            self._all_types_interesting = True
+            return
+        types = bus.subscribed_types
+        if types is None or len(types) == 0:
+            self._all_types_interesting = True
+            return
+        self._subscribed_types = types
+        self._all_types_interesting = False
+
     def _feed(self, line: str):
         event = self._parser.feed(line)
         if event is not None:
             self.ready.set()
-            self._publish(event)
+            if self._all_types_interesting:
+                self._refresh_filter()
+            if self._all_types_interesting or type(event) in self._subscribed_types:
+                self._publish(event)
 
     def stop(self):
         self._stop_event.set()
