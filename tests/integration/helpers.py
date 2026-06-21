@@ -6,6 +6,16 @@ import tempfile
 import time
 
 
+def _backend():
+    """Return the backend to use for integration tests.
+
+    Subprocess backend is preferred in CI because the D-Bus backend
+    creates persistent connections that contribute to UDisks2 overload
+    when many integration tests run in sequence.
+    """
+    return 'subprocess' if os.environ.get('CI', '') == 'true' else 'auto'
+
+
 def udisksctl_available():
     try:
         r = subprocess.run(['udisksctl', 'dump'], capture_output=True)
@@ -21,22 +31,35 @@ def make_image():
     subprocess.run(['dd', 'if=/dev/zero', 'of=' + path, 'bs=1M',
                     'count=1'], capture_output=True, check=True)
     subprocess.run(['mkfs.vfat', path], capture_output=True, check=True)
-    r = subprocess.run(
-        ['udisksctl', 'loop-setup', '-f', path, '--no-user-interaction'],
-        capture_output=True, text=True)
-    r.check_returncode()
+    try:
+        r = subprocess.run(
+            ['udisksctl', 'loop-setup', '-f', path, '--no-user-interaction'],
+            capture_output=True, text=True)
+        r.check_returncode()
+    except subprocess.CalledProcessError:
+        os.unlink(path)
+        raise RuntimeError(
+            f'loop-setup failed (rc={r.returncode}):\n'
+            f'stdout: {r.stdout}\n'
+            f'stderr: {r.stderr}') from None
     for line in r.stdout.splitlines():
         if '/dev/' in line and 'loop' in line:
             device = line.strip().split()[-1].rstrip('.')
             return device, path, device.split('/')[-1]
+    os.unlink(path)
     raise RuntimeError(f'could not parse loop-setup output:\n{r.stdout}')
 
 
 def cleanup(device, img_path):
-    subprocess.run(['udisksctl', 'unmount', '-b', device,
-                    '--no-user-interaction'], capture_output=True)
-    subprocess.run(['udisksctl', 'loop-delete', '-b', device,
-                    '--no-user-interaction'], capture_output=True)
-    time.sleep(0.3)
+    for _ in range(3):
+        r = subprocess.run(
+            ['udisksctl', 'unmount', '-b', device, '--no-user-interaction'],
+            capture_output=True, text=True)
+        r2 = subprocess.run(
+            ['udisksctl', 'loop-delete', '-b', device, '--no-user-interaction'],
+            capture_output=True, text=True)
+        if r2.returncode == 0:
+            break
+        time.sleep(0.1)
     if os.path.exists(img_path):
         os.unlink(img_path)
