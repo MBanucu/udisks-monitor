@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import queue
 import threading
 from datetime import datetime
 
@@ -25,7 +24,6 @@ from udisks_monitor._events import (
 )
 
 _BLOCK_DEVICES = '/block_devices/'
-_SENTINEL = object()
 
 
 def _device_from_path(path: str) -> str:
@@ -48,24 +46,16 @@ def _timestamp() -> str:
 class _DBusBackend(_Backend):
     """Monitors UDisks2 events via direct D-Bus signal subscription.
 
-    Signal processing is offloaded to a worker thread so the asyncio
-    event loop never blocks on subscriber callbacks.  The handler
-    just pushes messages onto a queue and returns immediately,
-    keeping the D-Bus I/O responsive.
+    An asyncio event loop is run in the calling thread (which is
+    expected to be a dedicated monitor thread).
     """
 
     def __init__(self, publish):
         super().__init__(publish)
         self._loop = None
         self._stop_signal = None
-        self._queue: queue.Queue = queue.Queue()
-        self._worker: threading.Thread | None = None
 
     def run(self):
-        self._worker = threading.Thread(target=self._process_queue,
-                                        daemon=True)
-        self._worker.start()
-
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         self._loop = loop
@@ -74,10 +64,7 @@ class _DBusBackend(_Backend):
         except Exception:
             self.ready.set()
         finally:
-            self._queue.put(_SENTINEL)
             loop.close()
-            if self._worker is not None:
-                self._worker.join(timeout=5)
 
     async def _listen(self):
         bus = await _AioMessageBus(bus_type=_BusType.SYSTEM).connect()
@@ -105,25 +92,11 @@ class _DBusBackend(_Backend):
                 self._loop is not None and not self._loop.is_closed():
             self._loop.call_soon_threadsafe(self._stop_signal.set)
 
-    # ── message routing (called from asyncio event loop) ─────────
+    # ── message routing ──────────────────────────────────────────
 
     def _on_message(self, msg):
-        """Enqueue the message for processing and return immediately."""
         if msg.message_type != _MessageType.SIGNAL:
             return
-        self._queue.put(msg)
-
-    # ── worker thread ────────────────────────────────────────────
-
-    def _process_queue(self):
-        while True:
-            msg = self._queue.get()
-            if msg is _SENTINEL:
-                break
-            self._process_message(msg)
-            self._queue.task_done()
-
-    def _process_message(self, msg):
         if msg.interface == 'org.freedesktop.DBus.ObjectManager':
             if msg.member == 'InterfacesAdded':
                 self._on_interfaces_added(*msg.body)
