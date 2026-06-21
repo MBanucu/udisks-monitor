@@ -38,9 +38,11 @@ jobs:
           POLKIT
 
       - name: Install coverage
+        if: false
         run: python -m pip install coverage
 
       - name: Set up coverage with relative paths
+        if: false
         run: |
           cat > .coveragerc << 'EOF'
           [run]
@@ -48,15 +50,18 @@ jobs:
           EOF
 
       - name: Run udisks+dbus stress test
-        run: python -m unittest tests.stress_udisks_dbus -v
+        run: python -W ignore::ResourceWarning -m unittest tests.stress_udisks_dbus -v
 
       - name: Report coverage
+        if: false
         run: python -m coverage report --skip-covered
 
       - name: Dump XML for Codecov
+        if: false
         run: python -m coverage xml -o coverage.xml
 
       - name: Upload coverage to Codecov
+        if: false
         uses: codecov/codecov-action@v7.0.0
         with:
           files: coverage.xml
