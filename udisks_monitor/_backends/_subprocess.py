@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
+import time
 
 from udisks_monitor._backends._base import _Backend
 from udisks_monitor._parser import MonitorParser
@@ -39,8 +40,9 @@ class _SubprocessBackend(_Backend):
             self.ready.set()
             return
 
-        self.ready.set()
         self._feed(first)
+        time.sleep(0.5)
+        self.ready.set()
 
         try:
             for line in proc.stdout:
@@ -55,6 +57,7 @@ class _SubprocessBackend(_Backend):
     def _feed(self, line: str):
         event = self._parser.feed(line)
         if event is not None:
+            self.ready.set()
             self._publish(event)
 
     def stop(self):
