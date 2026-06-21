@@ -1,4 +1,4 @@
-"""Event-driven pub/sub wrapper around ``udisksctl monitor``.
+"""Event-driven pub/sub wrapper around UDisks2 events.
 
 Provides :class:`UdisksMonitor`, an :class:`EventBus`, and typed event
 dataclasses for every event that the UDisks2 daemon can emit::
@@ -14,6 +14,13 @@ dataclasses for every event that the UDisks2 daemon can emit::
 
     mon.start()
     mon.join()
+
+Two backends produce identical events through the same :class:`EventBus`:
+
+* **dbus** (default) — subscribes directly to UDisks2 D-Bus signals
+  via ``dbus-fast`` for typed event data.
+* **subprocess** — spawns ``udisksctl monitor`` and parses its text
+  output.  Select with ``UdisksMonitor(backend='subprocess')``.
 """
 
 from udisks_monitor._events import (
