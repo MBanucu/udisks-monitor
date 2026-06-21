@@ -31,18 +31,20 @@ class _SubprocessBackend(_Backend):
             self.ready.set()
             return
 
+        timer = threading.Timer(0.5, self.ready.set)
+        timer.daemon = True
+        timer.start()
+
         try:
             first = proc.stdout.readline()
         except Exception:
             proc.terminate()
             proc.wait()
+            timer.cancel()
             self.ready.set()
             return
 
         self._feed(first)
-
-        timer = threading.Timer(0.5, self.ready.set)
-        timer.start()
 
         try:
             for line in proc.stdout:
