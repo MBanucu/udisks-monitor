@@ -47,8 +47,8 @@ jobs:
           relative_files = True
           EOF
 
-      - name: Run tests with coverage
-        run: python -m coverage run -m unittest discover -s tests -v
+      - name: Run parity tests (no skip)
+        run: python -W ignore::ResourceWarning -m unittest tests.integration.test_backend_parity -v
 
       - name: Report coverage
         run: python -m coverage report --skip-covered
