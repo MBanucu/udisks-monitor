@@ -50,7 +50,7 @@ jobs:
           EOF
 
       - name: Run udisks+dbus stress test
-        run: python -W ignore::ResourceWarning -m unittest tests.stress_udisks_dbus -v
+        run: python -W ignore::ResourceWarning -m unittest tests.sol2_verify -v
 
       - name: Report coverage
         if: false
