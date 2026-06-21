@@ -8,6 +8,35 @@ import threading
 from udisks_monitor._backends._base import _Backend
 from udisks_monitor._parser import MonitorParser
 
+# Keywords that identify stdout lines which can produce UDisks2 events.
+# Lines not matching any of these are skipped before the expensive regex
+# parser runs, reducing work on preamble/noise/empty lines.
+_INTEREST_KEYWORDS = frozenset({
+    'Added /org/freedesktop/UDisks2/jobs/',
+    'Removed /org/freedesktop/UDisks2/jobs/',
+    'Added interface ',
+    'Removed interface ',
+    '::Completed',
+    '/block_devices/',
+    'Properties Changed',
+    'Operation:',
+    'Objects:',
+})
+
+
+def _line_matters(line: str) -> bool:
+    """Return True if *line* could produce a UDisks2 event after parsing."""
+    if not line:
+        return False
+    if line[0].isdigit():
+        return True
+    if line.startswith('  '):
+        return True
+    for kw in _INTEREST_KEYWORDS:
+        if kw in line:
+            return True
+    return False
+
 
 class _SubprocessBackend(_Backend):
     """Spawns ``udisksctl monitor`` and feeds its output to :class:`MonitorParser`."""
@@ -74,6 +103,8 @@ class _SubprocessBackend(_Backend):
         self._all_types_interesting = False
 
     def _feed(self, line: str):
+        if not _line_matters(line):
+            return
         event = self._parser.feed(line)
         if event is not None:
             self.ready.set()
