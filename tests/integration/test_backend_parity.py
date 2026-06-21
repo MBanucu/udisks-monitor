@@ -1,6 +1,5 @@
 """Integration test verifying both backends produce equivalent events."""
 
-import os
 import subprocess
 import threading
 import unittest
@@ -24,7 +23,6 @@ ALL_EVENT_TYPES = (
 )
 
 
-@unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 
 
 def _collect_events(backend):
@@ -59,7 +57,6 @@ def _collect_events(backend):
     return events
 
 
-@unittest.skipIf(SKIP_PARITY, 'running both backends in one process overloads UDisks2 in CI')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestBackendParity(unittest.TestCase):
 
