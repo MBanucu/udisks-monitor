@@ -1,32 +1,12 @@
 """Integration tests for UdisksMonitor startup and shutdown lifecycle."""
 
-import subprocess
 import threading
-import time
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, cleanup, make_image,
-                                       udisksctl_available)
-
-
-def _restart_udisks():
-    subprocess.run(
-        ['sudo', 'systemctl', 'restart', 'udisks2'],
-        capture_output=True, timeout=15)
-    for _ in range(20):
-        r = subprocess.run(
-            ['busctl', '--system', 'call',
-             'org.freedesktop.DBus', '/org/freedesktop/DBus',
-             'org.freedesktop.DBus', 'NameHasOwner',
-             's', 'org.freedesktop.UDisks2'],
-            capture_output=True, text=True, timeout=5)
-        if 'true' in r.stdout:
-            time.sleep(0.3)
-            return
-        time.sleep(0.5)
-    raise RuntimeError('UDisks2 did not become ready after restart')
+from tests.integration.helpers import (_backend, _restart_udisks, cleanup,
+                                       make_image, udisksctl_available)
 
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
