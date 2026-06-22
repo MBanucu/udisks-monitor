@@ -9,7 +9,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_restart_udisks, cleanup, make_image,
+from tests.integration.helpers import (_ensure_udisks_ready, cleanup, make_image,
                                        udisksctl_available)
 
 
@@ -30,7 +30,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
     loop-setup + loop-delete cycle with correct data."""
 
     def setUp(self):
-        _restart_udisks()
+        _ensure_udisks_ready()
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded

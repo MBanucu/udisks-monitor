@@ -20,7 +20,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, _restart_udisks, cleanup,
+from tests.integration.helpers import (_backend, _ensure_udisks_ready, cleanup,
                                        make_image, udisksctl_available)
 
 ALL_EVENT_TYPES = (
@@ -81,7 +81,7 @@ class _EventRecorder:
 class TestAllEventTypes(unittest.TestCase):
 
     def setUp(self):
-        _restart_udisks()
+        _ensure_udisks_ready()
 
     def test_full_lifecycle_emits_all_event_types(self):
         mon = UdisksMonitor(backend=_backend())
