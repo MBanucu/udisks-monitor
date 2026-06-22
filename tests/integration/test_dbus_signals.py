@@ -9,7 +9,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_ensure_udisks_ready, cleanup, make_image,
+from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
+                                       cleanup, make_image,
                                        udisksctl_available)
 
 
@@ -28,6 +29,10 @@ SETUP_TYPES = (
 class TestDBusSignalCompleteness(unittest.TestCase):
     """Verify the D-Bus backend receives all expected signals from a
     loop-setup + loop-delete cycle with correct data."""
+
+    @classmethod
+    def setUpClass(cls):
+        _restart_udisks()
 
     def setUp(self):
         _ensure_udisks_ready()
