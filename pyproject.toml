@@ -29,9 +29,6 @@ classifiers = [
 Homepage = "https://github.com/MBanucu/udisks-monitor"
 Repository = "https://github.com/MBanucu/udisks-monitor"
 
-[project.optional-dependencies]
-dbus-next = ["dbus-next"]
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["udisks_monitor*"]

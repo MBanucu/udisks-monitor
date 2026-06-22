@@ -19,12 +19,11 @@ class UdisksMonitor(threading.Thread):
         The :class:`EventBus` to publish events to.  A default bus is
         created if not provided.
     backend:
-        ``'auto'`` (default) — try the D-Bus backend, fall back to
-        the subprocess backend if ``dbus-fast`` is unavailable.
+        ``'auto'`` (default) — subscribe directly to UDisks2 D-Bus
+        signals via ``dbus-fast``.
         ``'subprocess'`` — always spawn ``udisksctl monitor`` and
         parse its text output.
-        ``'dbus'`` — subscribe directly to UDisks2 D-Bus signals
-        (requires ``pip install udisks-monitor[dbus]``).
+        ``'dbus'`` — same as ``'auto'``.
     """
 
     def __init__(self, bus: EventBus | None = None, backend: str = 'auto'):
