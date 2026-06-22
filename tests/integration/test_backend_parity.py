@@ -1,5 +1,6 @@
 """Integration test verifying both backends produce equivalent events."""
 
+import subprocess
 import time
 import unittest
 
@@ -30,6 +31,10 @@ class TestBackendParity(unittest.TestCase):
     backend spawns ``udisksctl monitor`` which, when terminated,
     drops its D-Bus connection abruptly.  Running the D-Bus backend
     afterwards would inherit a destabilised UDisks2 daemon.
+
+    UDisks2 is restarted before each test method to ensure a clean
+    daemon state — without this, cumulative stress from repeated
+    loop-setup operations causes the daemon to crash on CI runners.
     """
 
     @staticmethod
@@ -42,12 +47,10 @@ class TestBackendParity(unittest.TestCase):
         return _collect_events('subprocess')
 
     def setUp(self):
-        """Cooldown between test methods — each spawns multiple monitors."""
-        time.sleep(3)
-
-    def tearDown(self):
-        """Extra cooldown after each test method."""
-        time.sleep(2)
+        subprocess.run(
+            ['sudo', 'systemctl', 'restart', 'udisks2'],
+            capture_output=True, timeout=15)
+        time.sleep(0.5)
 
     def test_both_backends_emit_all_event_types(self):
         for backend_fn, label in [(self._dbus_events, 'dbus'),
