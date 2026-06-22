@@ -1,7 +1,6 @@
 """Integration test verifying both backends produce equivalent events."""
 
 import os
-import subprocess
 import time
 import unittest
 
@@ -11,6 +10,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
 
 from tests.integration.helpers import (_backend,
                                        _collect_events,
+                                       _restart_udisks,
                                        udisksctl_available)
 
 SKIP_PARITY_IN_CI = os.environ.get('CI', '') == 'true'
@@ -52,22 +52,7 @@ class TestBackendParity(unittest.TestCase):
         return _collect_events('subprocess')
 
     def setUp(self):
-        subprocess.run(
-            ['sudo', 'systemctl', 'restart', 'udisks2'],
-            capture_output=True, timeout=15)
-        # Wait for UDisks2 to actually become responsive
-        for _ in range(20):
-            r = subprocess.run(
-                ['busctl', '--system', 'call',
-                 'org.freedesktop.DBus', '/org/freedesktop/DBus',
-                 'org.freedesktop.DBus', 'NameHasOwner',
-                 's', 'org.freedesktop.UDisks2'],
-                capture_output=True, text=True, timeout=5)
-            if 'true' in r.stdout:
-                time.sleep(0.3)
-                return
-            time.sleep(0.5)
-        raise RuntimeError('UDisks2 did not become ready after restart')
+        _restart_udisks()
 
     def test_both_backends_emit_all_event_types(self):
         for backend_fn, label in [(self._dbus_events, 'dbus'),

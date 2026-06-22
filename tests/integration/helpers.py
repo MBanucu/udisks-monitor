@@ -27,6 +27,26 @@ def udisksctl_available():
         return False
 
 
+def _restart_udisks():
+    """Restart UDisks2 via systemctl and wait for it to become ready.
+
+    Uses a fixed 2s cooldown + single busctl check (same approach as
+    the dbus-udisks-analysis repo, proven reliable on CI).
+    """
+    subprocess.run(
+        ['sudo', 'systemctl', 'restart', 'udisks2'],
+        capture_output=True, text=True, timeout=30)
+    time.sleep(2)
+    r = subprocess.run(
+        ['busctl', '--system', 'call',
+         'org.freedesktop.DBus', '/org/freedesktop/DBus',
+         'org.freedesktop.DBus', 'NameHasOwner',
+         's', 'org.freedesktop.UDisks2'],
+        capture_output=True, text=True, timeout=10)
+    if 'true' not in r.stdout:
+        raise RuntimeError('UDisks2 did not become ready after restart')
+
+
 def make_image():
     """Create a small VFAT image, set up a loop device, unmount it."""
     fd, path = tempfile.mkstemp(suffix='.img')

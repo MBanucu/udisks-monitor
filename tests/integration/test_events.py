@@ -14,15 +14,14 @@ filesystem state during loop-delete.
 
 import subprocess
 import threading
-import time
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, cleanup, make_image,
-                                       udisksctl_available)
+from tests.integration.helpers import (_backend, _restart_udisks, cleanup,
+                                       make_image, udisksctl_available)
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged,
@@ -43,23 +42,6 @@ _RELIABLE_TYPES = (
     JobRemoved,
 )
 
-
-def _restart_udisks():
-    subprocess.run(
-        ['sudo', 'systemctl', 'restart', 'udisks2'],
-        capture_output=True, timeout=15)
-    for _ in range(20):
-        r = subprocess.run(
-            ['busctl', '--system', 'call',
-             'org.freedesktop.DBus', '/org/freedesktop/DBus',
-             'org.freedesktop.DBus', 'NameHasOwner',
-             's', 'org.freedesktop.UDisks2'],
-            capture_output=True, text=True, timeout=5)
-        if 'true' in r.stdout:
-            time.sleep(0.3)
-            return
-        time.sleep(0.5)
-    raise RuntimeError('UDisks2 did not become ready after restart')
 
 
 class _EventRecorder:
