@@ -27,23 +27,44 @@ def udisksctl_available():
         return False
 
 
-def _restart_udisks():
-    """Restart UDisks2 via systemctl and wait for it to become ready.
-
-    Uses a fixed 2s cooldown + single busctl check (same approach as
-    the dbus-udisks-analysis repo, proven reliable on CI).
-    """
-    subprocess.run(
-        ['sudo', 'systemctl', 'restart', 'udisks2'],
-        capture_output=True, text=True, timeout=30)
-    time.sleep(2)
+def _udisks_alive():
     r = subprocess.run(
         ['busctl', '--system', 'call',
          'org.freedesktop.DBus', '/org/freedesktop/DBus',
          'org.freedesktop.DBus', 'NameHasOwner',
          's', 'org.freedesktop.UDisks2'],
         capture_output=True, text=True, timeout=10)
-    if 'true' not in r.stdout:
+    return 'true' in r.stdout
+
+
+def _ensure_udisks_ready():
+    """Ensure UDisks2 is alive, restarting only if it is dead.
+
+    Avoids systemd start-limit rate limiting that occurs when
+    restarting before every test method.
+    """
+    if _udisks_alive():
+        return
+    subprocess.run(
+        ['sudo', 'systemctl', 'restart', 'udisks2'],
+        capture_output=True, text=True, timeout=30)
+    time.sleep(2)
+    if not _udisks_alive():
+        raise RuntimeError('UDisks2 did not become ready after restart')
+
+
+def _restart_udisks():
+    """Force-restart UDisks2 unconditionally.
+
+    Use sparingly — only when a test class needs a guaranteed fresh
+    daemon (e.g. parity tests).  Most tests should use
+    :func:`_ensure_udisks_ready` instead.
+    """
+    subprocess.run(
+        ['sudo', 'systemctl', 'restart', 'udisks2'],
+        capture_output=True, text=True, timeout=30)
+    time.sleep(2)
+    if not _udisks_alive():
         raise RuntimeError('UDisks2 did not become ready after restart')
 
 
