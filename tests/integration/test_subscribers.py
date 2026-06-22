@@ -7,20 +7,14 @@ import unittest
 from udisks_monitor import (DevicePropertyChanged, JobCompleted,
                             UdisksMonitor)
 
-from tests.integration.helpers import (_backend, _ensure_udisks_ready,
-                                       _restart_udisks, cleanup,
-                                       make_image, udisksctl_available)
+from tests.integration.helpers import (_backend, cleanup, make_image,
+                                       udisksctl_available)
 
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestSubscriberBehavior(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        _restart_udisks()
-
     def setUp(self):
-        _ensure_udisks_ready()
         self.mon = UdisksMonitor(backend=_backend())
 
     def tearDown(self):
