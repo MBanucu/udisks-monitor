@@ -2,6 +2,7 @@
 
 import subprocess
 import threading
+import time
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, JobCompleted,
@@ -11,10 +12,29 @@ from tests.integration.helpers import (_backend, cleanup, make_image,
                                        udisksctl_available)
 
 
+def _restart_udisks():
+    subprocess.run(
+        ['sudo', 'systemctl', 'restart', 'udisks2'],
+        capture_output=True, timeout=15)
+    for _ in range(20):
+        r = subprocess.run(
+            ['busctl', '--system', 'call',
+             'org.freedesktop.DBus', '/org/freedesktop/DBus',
+             'org.freedesktop.DBus', 'NameHasOwner',
+             's', 'org.freedesktop.UDisks2'],
+            capture_output=True, text=True, timeout=5)
+        if 'true' in r.stdout:
+            time.sleep(0.3)
+            return
+        time.sleep(0.5)
+    raise RuntimeError('UDisks2 did not become ready after restart')
+
+
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestSubscriberBehavior(unittest.TestCase):
 
     def setUp(self):
+        _restart_udisks()
         self.mon = UdisksMonitor(backend=_backend())
 
     def tearDown(self):
