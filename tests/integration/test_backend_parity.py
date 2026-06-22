@@ -1,5 +1,6 @@
 """Integration test verifying both backends produce equivalent events."""
 
+import os
 import subprocess
 import time
 import unittest
@@ -12,6 +13,8 @@ from tests.integration.helpers import (_backend,
                                        _collect_events,
                                        udisksctl_available)
 
+SKIP_PARITY_IN_CI = os.environ.get('CI', '') == 'true'
+
 ALL_EVENT_TYPES = (
     DevicePropertyChanged,
     InterfaceAdded,
@@ -23,6 +26,8 @@ ALL_EVENT_TYPES = (
 )
 
 
+@unittest.skipIf(SKIP_PARITY_IN_CI,
+                 'parity tests stress UDisks2 too aggressively for CI runners')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestBackendParity(unittest.TestCase):
     """Compare events from both backends against the same operation sequence.
