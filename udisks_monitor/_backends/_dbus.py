@@ -97,11 +97,18 @@ class _DBusBackend(_Backend):
         self.ready.set()
         await self._stop_signal.wait()
         bus.disconnect()
+        # Drain subscribers after disconnect — no more signals can
+        # arrive, so any queued events are already dispatched.
+        for _, _, q in self._subs:
+            q.put(None)
 
     def stop(self):
         if self._stop_signal is not None and \
                 self._loop is not None and not self._loop.is_closed():
             self._loop.call_soon_threadsafe(self._stop_signal.set)
+            return
+        # Monitor never started or already stopped — drain threads
+        # need to exit, but _listen() won't inject sentinels.
         for _, _, q in self._subs:
             q.put(None)
 
