@@ -41,6 +41,14 @@ class TestBackendParity(unittest.TestCase):
         time.sleep(0.5)
         return _collect_events('subprocess')
 
+    def setUp(self):
+        """Cooldown between test methods — each spawns multiple monitors."""
+        time.sleep(3)
+
+    def tearDown(self):
+        """Extra cooldown after each test method."""
+        time.sleep(2)
+
     def test_both_backends_emit_all_event_types(self):
         for backend_fn, label in [(self._dbus_events, 'dbus'),
                                    (self._subprocess_events, 'subprocess')]:
