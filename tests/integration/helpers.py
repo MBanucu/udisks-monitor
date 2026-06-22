@@ -3,7 +3,10 @@
 import os
 import subprocess
 import tempfile
+import threading
 import time
+
+from udisks_monitor import InterfaceAdded, JobCompleted, UdisksMonitor
 
 
 def _backend():
@@ -63,3 +66,36 @@ def cleanup(device, img_path):
         time.sleep(0.1)
     if os.path.exists(img_path):
         os.unlink(img_path)
+
+
+def _collect_events(backend):
+    """Run one loop-setup + loop-delete cycle and return captured events."""
+    events = []
+    interface_added = threading.Event()
+    job_completed = threading.Event()
+
+    mon = UdisksMonitor(backend=backend)
+    mon.subscribe(lambda _: interface_added.set(), event_type=InterfaceAdded)
+    mon.subscribe(lambda _: job_completed.set(), event_type=JobCompleted)
+    mon.subscribe(lambda e: events.append(e))
+    mon.start()
+
+    if not mon.ready.wait(timeout=10):
+        mon.stop()
+        mon.join(timeout=5)
+        return None
+
+    dev, img, _name = make_image()
+    try:
+        if not interface_added.wait(timeout=5):
+            return None
+        subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
+                        '--no-user-interaction'], capture_output=True)
+        if not job_completed.wait(timeout=5):
+            return None
+    finally:
+        cleanup(dev, img)
+        mon.stop()
+        mon.join(timeout=5)
+
+    return events
