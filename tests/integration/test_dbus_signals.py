@@ -1,6 +1,5 @@
 """Integration test verifying D-Bus backend receives all expected signals."""
 
-import os
 import subprocess
 import threading
 import unittest
@@ -12,7 +11,6 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
 from tests.integration.helpers import (cleanup, make_image,
                                        udisksctl_available)
 
-SKIP_DBUS_INTEGRATION = os.environ.get('CI', '') == 'true'
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged, InterfaceAdded, InterfaceRemoved,
@@ -25,8 +23,6 @@ SETUP_TYPES = (
 )
 
 
-@unittest.skipIf(SKIP_DBUS_INTEGRATION,
-                 'D-Bus integration tests are unstable in CI')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestDBusSignalCompleteness(unittest.TestCase):
     """Verify the D-Bus backend receives all expected signals from a
