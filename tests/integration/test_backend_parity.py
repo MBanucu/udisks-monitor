@@ -50,7 +50,19 @@ class TestBackendParity(unittest.TestCase):
         subprocess.run(
             ['sudo', 'systemctl', 'restart', 'udisks2'],
             capture_output=True, timeout=15)
-        time.sleep(0.5)
+        # Wait for UDisks2 to actually become responsive
+        for _ in range(20):
+            r = subprocess.run(
+                ['busctl', '--system', 'call',
+                 'org.freedesktop.DBus', '/org/freedesktop/DBus',
+                 'org.freedesktop.DBus', 'NameHasOwner',
+                 's', 'org.freedesktop.UDisks2'],
+                capture_output=True, text=True, timeout=5)
+            if 'true' in r.stdout:
+                time.sleep(0.3)
+                return
+            time.sleep(0.5)
+        raise RuntimeError('UDisks2 did not become ready after restart')
 
     def test_both_backends_emit_all_event_types(self):
         for backend_fn, label in [(self._dbus_events, 'dbus'),
