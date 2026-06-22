@@ -5,7 +5,7 @@ import unittest
 
 from udisks_monitor import (DevicePropertyChanged, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, _restart_udisks, cleanup,
+from tests.integration.helpers import (_backend, _ensure_udisks_ready, cleanup,
                                        make_image, udisksctl_available)
 
 
@@ -13,7 +13,7 @@ from tests.integration.helpers import (_backend, _restart_udisks, cleanup,
 class TestStartupLifecycle(unittest.TestCase):
 
     def setUp(self):
-        _restart_udisks()
+        _ensure_udisks_ready()
         self.mon = UdisksMonitor(backend=_backend())
 
     def tearDown(self):
