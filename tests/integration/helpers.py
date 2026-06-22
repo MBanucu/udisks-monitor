@@ -46,6 +46,9 @@ def _ensure_udisks_ready():
     if _udisks_alive():
         return
     subprocess.run(
+        ['sudo', 'systemctl', 'reset-failed', 'udisks2'],
+        capture_output=True, text=True, timeout=10)
+    subprocess.run(
         ['sudo', 'systemctl', 'restart', 'udisks2'],
         capture_output=True, text=True, timeout=30)
     time.sleep(2)
@@ -60,6 +63,9 @@ def _restart_udisks():
     daemon (e.g. parity tests).  Most tests should use
     :func:`_ensure_udisks_ready` instead.
     """
+    subprocess.run(
+        ['sudo', 'systemctl', 'reset-failed', 'udisks2'],
+        capture_output=True, text=True, timeout=10)
     subprocess.run(
         ['sudo', 'systemctl', 'restart', 'udisks2'],
         capture_output=True, text=True, timeout=30)

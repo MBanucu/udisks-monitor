@@ -36,7 +36,8 @@ class TestDBusSignalCompleteness(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        _restart_udisks()
+        if not SKIP_DBUS_INTEGRATION:
+            _restart_udisks()
 
     def setUp(self):
         pass
