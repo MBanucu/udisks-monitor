@@ -45,7 +45,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
                 time.sleep(0.3)
                 return
             time.sleep(0.5)
-        raise RuntimeError('UDisks2 did not become ready after restart')    loop-setup + loop-delete cycle with correct data."""
+        raise RuntimeError('UDisks2 did not become ready after restart')
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded
