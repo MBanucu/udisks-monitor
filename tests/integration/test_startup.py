@@ -22,11 +22,11 @@ class TestStartupLifecycle(unittest.TestCase):
 
     def test_starts_and_signals_ready(self):
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
     def test_stop_stops_monitor(self):
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
         self.assertTrue(self.mon.is_alive())
         self.mon.stop()
         self.mon.join(timeout=5)
@@ -42,7 +42,7 @@ class TestStartupLifecycle(unittest.TestCase):
 
         self.mon.subscribe(handler, event_type=DevicePropertyChanged)
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)

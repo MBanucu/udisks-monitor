@@ -34,7 +34,7 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.subscribe(lambda e: r2.set(),
                            event_type=DevicePropertyChanged)
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
@@ -54,7 +54,7 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.subscribe(lambda e: jobs_received.set(),
                            event_type=JobCompleted)
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)

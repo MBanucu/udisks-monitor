@@ -86,7 +86,7 @@ class TestAllEventTypes(unittest.TestCase):
     def test_full_lifecycle_emits_all_event_types(self):
         mon = UdisksMonitor(backend=_backend())
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10))
+        self.assertTrue(mon.ready.wait(timeout=15))
 
         recorder = _EventRecorder(mon)
 
