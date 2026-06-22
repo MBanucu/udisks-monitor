@@ -9,7 +9,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (cleanup, make_image,
+from tests.integration.helpers import (_restart_udisks, cleanup, make_image,
                                        udisksctl_available)
 
 
@@ -30,22 +30,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
     loop-setup + loop-delete cycle with correct data."""
 
     def setUp(self):
-        """Restart UDisks2 for a clean daemon before each D-Bus test."""
-        subprocess.run(
-            ['sudo', 'systemctl', 'restart', 'udisks2'],
-            capture_output=True, timeout=15)
-        for _ in range(20):
-            r = subprocess.run(
-                ['busctl', '--system', 'call',
-                 'org.freedesktop.DBus', '/org/freedesktop/DBus',
-                 'org.freedesktop.DBus', 'NameHasOwner',
-                 's', 'org.freedesktop.UDisks2'],
-                capture_output=True, text=True, timeout=5)
-            if 'true' in r.stdout:
-                time.sleep(0.3)
-                return
-            time.sleep(0.5)
-        raise RuntimeError('UDisks2 did not become ready after restart')
+        _restart_udisks()
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded
@@ -158,7 +143,6 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)
 
-        import time
         time.sleep(0.5)
 
         mon.stop()
@@ -191,7 +175,6 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         dev, img, name = make_image()
         self.addCleanup(cleanup, dev, img)
 
-        import time
         time.sleep(0.5)
 
         mon.stop()
@@ -228,7 +211,6 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         self.addCleanup(cleanup, dev, img)
 
         # Wait a moment for signals to arrive
-        import time
         time.sleep(0.5)
 
         mon.stop()
