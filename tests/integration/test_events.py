@@ -20,9 +20,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, _ensure_udisks_ready,
-                                       _restart_udisks, cleanup,
-                                       make_image, udisksctl_available)
+from tests.integration.helpers import (_backend, cleanup, make_image,
+                                       udisksctl_available)
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged,
@@ -80,13 +79,6 @@ class _EventRecorder:
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestAllEventTypes(unittest.TestCase):
-
-    @classmethod
-    def setUpClass(cls):
-        _restart_udisks()
-
-    def setUp(self):
-        _ensure_udisks_ready()
 
     def test_full_lifecycle_emits_all_event_types(self):
         mon = UdisksMonitor(backend=_backend())
