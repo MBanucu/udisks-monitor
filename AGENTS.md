@@ -4,7 +4,35 @@ Instructions for AI agents working on this repository.
 
 ## Commands
 
+### Nix (recommended)
+
 ```bash
+# Enter dev shell with all build and test dependencies
+nix develop
+
+# Run all tests inside the dev shell (107 tests, includes integration tests)
+nix develop --command python -m unittest discover -s tests -v
+
+# Build the package and run unit tests in sandbox
+# Integration tests are skipped (no udisksctl in sandbox)
+nix build --no-link --print-build-logs
+
+# Run only parser/unit tests (no loop device operations needed)
+nix develop --command python -m unittest discover -s tests -v \
+  -k 'test_parser or test_pubsub or test_backend or test_dbus_backend'
+```
+
+### Non-Nix
+
+With a venv that has the project installed in editable mode:
+
+```bash
+# Install (dbus-fast is a hard dependency)
+python -m venv .venv --system-site-packages
+source .venv/bin/activate
+pip install -e .
+pip install coverage
+
 # Run all tests
 python -m unittest discover -s tests -v
 
