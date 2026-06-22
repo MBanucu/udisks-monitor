@@ -1,5 +1,6 @@
 """Shared helpers for integration tests."""
 
+import os
 import subprocess
 import tempfile
 import time
