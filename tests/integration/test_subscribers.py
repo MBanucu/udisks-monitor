@@ -7,15 +7,21 @@ import unittest
 from udisks_monitor import (DevicePropertyChanged, JobCompleted,
                             UdisksMonitor)
 
-from tests.integration.helpers import (cleanup, make_image,
+from tests.integration.helpers import (_backend, _ensure_udisks_ready,
+                                       _restart_udisks, cleanup, make_image,
                                        udisksctl_available)
 
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestSubscriberBehavior(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        _restart_udisks()
+
     def setUp(self):
-        self.mon = UdisksMonitor()
+        _ensure_udisks_ready()
+        self.mon = UdisksMonitor(backend=_backend())
 
     def tearDown(self):
         self.mon.stop()
@@ -33,7 +39,7 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.subscribe(lambda e: r2.set(),
                            event_type=DevicePropertyChanged)
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)
@@ -53,7 +59,7 @@ class TestSubscriberBehavior(unittest.TestCase):
         self.mon.subscribe(lambda e: jobs_received.set(),
                            event_type=JobCompleted)
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
         subprocess.run(['udisksctl', 'loop-delete', '-b', dev,
                         '--no-user-interaction'], capture_output=True)

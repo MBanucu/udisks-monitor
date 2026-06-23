@@ -5,15 +5,21 @@ import unittest
 
 from udisks_monitor import (DevicePropertyChanged, UdisksMonitor)
 
-from tests.integration.helpers import (cleanup, make_image,
+from tests.integration.helpers import (_backend, _ensure_udisks_ready,
+                                       _restart_udisks, cleanup, make_image,
                                        udisksctl_available)
 
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestStartupLifecycle(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        _restart_udisks()
+
     def setUp(self):
-        self.mon = UdisksMonitor()
+        _ensure_udisks_ready()
+        self.mon = UdisksMonitor(backend=_backend())
 
     def tearDown(self):
         self.mon.stop()
@@ -21,11 +27,11 @@ class TestStartupLifecycle(unittest.TestCase):
 
     def test_starts_and_signals_ready(self):
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
     def test_stop_stops_monitor(self):
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
         self.assertTrue(self.mon.is_alive())
         self.mon.stop()
         self.mon.join(timeout=5)
@@ -41,7 +47,7 @@ class TestStartupLifecycle(unittest.TestCase):
 
         self.mon.subscribe(handler, event_type=DevicePropertyChanged)
         self.mon.start()
-        self.assertTrue(self.mon.ready.wait(timeout=10))
+        self.assertTrue(self.mon.ready.wait(timeout=15))
 
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)
