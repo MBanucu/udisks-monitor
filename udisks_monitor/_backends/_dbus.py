@@ -150,7 +150,6 @@ class _DBusBackend(_Backend):
     def _on_message(self, msg):
         if msg.message_type != _MessageType.SIGNAL:
             return
-        print(f'  [SIG] {msg.interface}.{msg.member} {msg.path}')
         if msg.interface == 'org.freedesktop.DBus.ObjectManager':
             if msg.member == 'InterfacesAdded':
                 self._on_interfaces_added(*msg.body)
@@ -170,7 +169,6 @@ class _DBusBackend(_Backend):
             if event_type is None or isinstance(event, event_type):
                 q.put(event)
         self._publish(event)
-        print(f'  [DISP] {type(event).__name__} subs={len([s for _,e,_ in self._subs if e is None or isinstance(event, e)])}')
 
     def _on_interfaces_added(self, object_path, ifaces):
         ts = _timestamp()
