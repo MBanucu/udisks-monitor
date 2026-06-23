@@ -5,12 +5,17 @@ import unittest
 
 from udisks_monitor import (DevicePropertyChanged, UdisksMonitor)
 
-from tests.integration.helpers import (_backend, _ensure_udisks_ready, cleanup,
-                                       make_image, udisksctl_available)
+from tests.integration.helpers import (_backend, _ensure_udisks_ready,
+                                       _restart_udisks, cleanup, make_image,
+                                       udisksctl_available)
 
 
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestStartupLifecycle(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        _restart_udisks()
 
     def setUp(self):
         _ensure_udisks_ready()
