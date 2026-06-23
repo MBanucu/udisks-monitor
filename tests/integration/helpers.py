@@ -100,6 +100,56 @@ def make_image():
     raise RuntimeError(f'could not parse loop-setup output:\n{r.stdout}')
 
 
+def _restore_udisks(max_retries=3):
+    """Robustly restore UDisks2 after crash or destabilisation.
+
+    Per the dbus-udisks-analysis findings, CI runners require:
+      * Detaching dangling loop devices first
+      * Killing lingering udisksd processes
+      * systemctl stop → reset-failed → start cycle
+      * Verification via D-Bus ping + introspection
+
+    Returns True if UDisks2 is alive after recovery, False otherwise.
+    """
+    for attempt in range(max_retries):
+        # Detach any remaining loop devices first
+        subprocess.run(
+            ['sudo', 'losetup', '-D'],
+            capture_output=True, timeout=10)
+
+        # Kill lingering udisksd processes
+        subprocess.run(
+            ['sudo', 'pkill', '-9', 'udisksd'],
+            capture_output=True, timeout=5)
+        subprocess.run(
+            ['sudo', 'systemctl', 'stop', 'udisks2'],
+            capture_output=True, timeout=10)
+        time.sleep(2)
+        subprocess.run(
+            ['sudo', 'systemctl', 'reset-failed', 'udisks2'],
+            capture_output=True, timeout=10)
+        subprocess.run(
+            ['sudo', 'systemctl', 'start', 'udisks2'],
+            capture_output=True, timeout=10)
+        time.sleep(3)
+
+        if _udisks_alive():
+            r = subprocess.run(
+                ['busctl', '--system', 'call',
+                 'org.freedesktop.UDisks2',
+                 '/org/freedesktop/UDisks2',
+                 'org.freedesktop.DBus.Introspectable',
+                 'Introspect'],
+                capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and 'interface' in r.stdout:
+                return True
+
+        if attempt < max_retries - 1:
+            time.sleep(2)
+
+    return False
+
+
 def cleanup(device, img_path):
     for _ in range(3):
         r = subprocess.run(
@@ -115,6 +165,24 @@ def cleanup(device, img_path):
         os.unlink(img_path)
 
 
+def _collect_events_with_retry(backend, max_retries=3):
+    """Run a loop-setup + delete cycle, retrying on UDisks2 failure.
+
+    Per the dbus-udisks-analysis findings, UDisks2 can crash or become
+    unresponsive during D-Bus + loop stress on CI runners.  This wrapper
+    detects failures and restores UDisks2 before retrying.
+    """
+    for attempt in range(max_retries):
+        events = _collect_events(backend)
+        if events is not None:
+            return events
+        if not _udisks_alive():
+            _restore_udisks()
+        elif attempt < max_retries - 1:
+            time.sleep(2)
+    return None
+
+
 def _collect_events(backend):
     """Run one loop-setup + loop-delete cycle and return captured events."""
     events = []
@@ -127,7 +195,7 @@ def _collect_events(backend):
     mon.subscribe(lambda e: events.append(e))
     mon.start()
 
-    if not mon.ready.wait(timeout=10):
+    if not mon.ready.wait(timeout=15):
         mon.stop()
         mon.join(timeout=5)
         return None

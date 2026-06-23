@@ -10,10 +10,11 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_restart_udisks, cleanup, make_image,
+from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
+                                       cleanup, make_image,
                                        udisksctl_available)
 
-SKIP_DBUS_INTEGRATION = os.environ.get('CI', '') == 'true'
+_IS_CI = os.environ.get('CI', '') == 'true'
 
 
 ALL_EVENT_TYPES = (
@@ -27,8 +28,6 @@ SETUP_TYPES = (
 )
 
 
-@unittest.skipIf(SKIP_DBUS_INTEGRATION,
-                 'D-Bus integration tests are unstable in CI')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestDBusSignalCompleteness(unittest.TestCase):
     """Verify the D-Bus backend receives all expected signals from a
@@ -36,11 +35,11 @@ class TestDBusSignalCompleteness(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not SKIP_DBUS_INTEGRATION:
+        if not _IS_CI:
             _restart_udisks()
 
     def setUp(self):
-        pass
+        _ensure_udisks_ready()
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded
