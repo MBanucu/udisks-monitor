@@ -46,19 +46,15 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         mon.start()
 
         if not mon.ready.wait(timeout=15):
-            print(f'  [DEBUG attempt {attempt+1}] monitor not ready after 15s')
             mon.stop()
             mon.join(timeout=5)
             _restore_udisks()
             continue
 
-        print(f'  [DEBUG attempt {attempt+1}] monitor ready, creating image...')
         dev = img = None
         try:
             dev, img, name = make_image()
-            print(f'  [DEBUG attempt {attempt+1}] made device {dev}')
-        except Exception as e:
-            print(f'  [DEBUG attempt {attempt+1}] make_image failed: {e}')
+        except Exception:
             mon.stop()
             mon.join(timeout=5)
             _restore_udisks()
@@ -67,19 +63,14 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         all_received = True
         for et in wait_for:
             if not received[et].wait(timeout=15):
-                print(f'  [DEBUG attempt {attempt+1}] timed out waiting for {et.__name__}')
                 all_received = False
                 break
-            print(f'  [DEBUG attempt {attempt+1}] received {et.__name__}')
 
         if settle:
             time.sleep(settle)
 
         mon.stop()
         mon.join(timeout=5)
-
-        print(f'  [DEBUG attempt {attempt+1}] monitor stopped, '
-              f'received {len(events)} total events, all_received={all_received}')
 
         if all_received:
             self.addCleanup(cleanup, dev, img)

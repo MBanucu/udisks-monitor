@@ -35,6 +35,16 @@ from udisks_monitor._events import (
 
 _BLOCK_DEVICES = '/block_devices/'
 
+# Narrow interface-based match rules to avoid flooding the D-Bus receive
+# buffer with every signal on the system bus.  Using 'type=signal' on the
+# CI runner's dbus-daemon causes JobCompleted to be dropped because
+# Python cannot drain the signal-flooded buffer fast enough.
+_ADD_MATCH_RULES = [
+    'type=signal,interface=org.freedesktop.DBus.ObjectManager',
+    'type=signal,interface=org.freedesktop.DBus.Properties',
+    'type=signal,interface=org.freedesktop.UDisks2.Job',
+]
+
 
 def _device_from_path(path: str) -> str:
     idx = path.find(_BLOCK_DEVICES)
@@ -81,17 +91,19 @@ class _DBusBackend(_Backend):
         bus = await _AioMessageBus(bus_type=_BusType.SYSTEM).connect()
         bus.add_message_handler(self._on_message)
 
-        reply = await bus.call(_Message(
-            destination='org.freedesktop.DBus',
-            path='/org/freedesktop/DBus',
-            interface='org.freedesktop.DBus',
-            member='AddMatch',
-            signature='s',
-            body=['type=signal'],
-        ))
-        if reply.message_type == _MessageType.ERROR:
-            raise RuntimeError(
-                f'AddMatch failed: {reply.body[0] if reply.body else "unknown"}')
+        for rule in _ADD_MATCH_RULES:
+            reply = await bus.call(_Message(
+                destination='org.freedesktop.DBus',
+                path='/org/freedesktop/DBus',
+                interface='org.freedesktop.DBus',
+                member='AddMatch',
+                signature='s',
+                body=[rule],
+            ))
+            if reply.message_type == _MessageType.ERROR:
+                raise RuntimeError(
+                    f'AddMatch failed for rule {rule!r}: '
+                    f'{reply.body[0] if reply.body else "unknown"}')
 
         self._stop_signal = asyncio.Event()
         self.ready.set()
