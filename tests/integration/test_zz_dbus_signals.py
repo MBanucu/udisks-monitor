@@ -1,6 +1,5 @@
 """Integration test verifying D-Bus backend receives all expected signals."""
 
-import os
 import subprocess
 import threading
 import time
@@ -14,8 +13,6 @@ from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
                                        _udisks_alive, cleanup, make_image,
                                        udisksctl_available)
 
-_IS_CI = os.environ.get('CI', '') == 'true'
-
 ALL_EVENT_TYPES = (
     DevicePropertyChanged, InterfaceAdded, InterfaceRemoved,
     JobAdded, JobProperties, JobCompleted, JobRemoved,
@@ -27,11 +24,6 @@ SETUP_TYPES = (
 )
 
 
-@unittest.skipIf(_IS_CI,
-                 'D-Bus signal tests are unreliable on CI runners '
-                 '(UDisks2 crashes under D-Bus + loop stress, per '
-                 'dbus-udisks-analysis findings).  Parity tests '
-                 'already cover D-Bus backend equivalence.')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestDBusSignalCompleteness(unittest.TestCase):
     """Verify the D-Bus backend receives all expected signals from a
