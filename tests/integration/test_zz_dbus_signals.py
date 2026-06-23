@@ -9,7 +9,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_restart_udisks, cleanup, make_image,
+from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
+                                       _udisks_alive, cleanup, make_image,
                                        udisksctl_available)
 
 ALL_EVENT_TYPES = (
@@ -26,14 +27,26 @@ SETUP_TYPES = (
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestDBusSignalCompleteness(unittest.TestCase):
     """Verify the D-Bus backend receives all expected signals from a
-    loop-setup + loop-delete cycle with correct data."""
+    loop-setup + loop-delete cycle with correct data.
+
+    Tests run last in the integration suite (test_zz_ prefix) because
+    creating multiple D-Bus connections + loop devices can destabilise
+    UDisks2 on CI runners (per dbus-udisks-analysis findings).
+    """
+
+    _udisks_dead = False
 
     @classmethod
     def setUpClass(cls):
         _restart_udisks()
 
     def setUp(self):
-        _restart_udisks()
+        if TestDBusSignalCompleteness._udisks_dead:
+            self.skipTest('UDisks2 died during earlier D-Bus test')
+        _ensure_udisks_ready()
+        if not _udisks_alive():
+            TestDBusSignalCompleteness._udisks_dead = True
+            self.skipTest('UDisks2 not available — skipping remaining D-Bus tests')
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded
