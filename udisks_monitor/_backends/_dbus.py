@@ -35,14 +35,14 @@ from udisks_monitor._events import (
 
 _BLOCK_DEVICES = '/block_devices/'
 
-# Narrow interface-based match rules to avoid flooding the D-Bus receive
-# buffer with every signal on the system bus.  Using 'type=signal' on the
-# CI runner's dbus-daemon causes JobCompleted to be dropped because
-# Python cannot drain the signal-flooded buffer fast enough.
+# Match only UDisks2 signals by path namespace so the D-Bus daemon
+# filters out systemd1 and other service signals before delivery.
+# Using 'type=signal' alone or interface-based rules still floods
+# the receive buffer (all services share org.freedesktop.DBus.Properties
+# and org.freedesktop.DBus.ObjectManager interfaces), causing
+# JobCompleted to be dropped.
 _ADD_MATCH_RULES = [
-    'type=signal,interface=org.freedesktop.DBus.ObjectManager',
-    'type=signal,interface=org.freedesktop.DBus.Properties',
-    'type=signal,interface=org.freedesktop.UDisks2.Job',
+    'type=signal,path_namespace=/org/freedesktop/UDisks2',
 ]
 
 
@@ -150,7 +150,6 @@ class _DBusBackend(_Backend):
     def _on_message(self, msg):
         if msg.message_type != _MessageType.SIGNAL:
             return
-        print(f'  [SIGNAL] {msg.interface}.{msg.member}  {msg.path}')
         if msg.interface == 'org.freedesktop.DBus.ObjectManager':
             if msg.member == 'InterfacesAdded':
                 self._on_interfaces_added(*msg.body)

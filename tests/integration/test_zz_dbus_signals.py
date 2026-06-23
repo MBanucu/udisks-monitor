@@ -43,13 +43,9 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         mon = UdisksMonitor(backend='dbus')
         for et in subscriptions:
             mon.subscribe(handler, event_type=et)
-        # Catch-all subscriber — ensures _dispatch has a receiver
-        # for every signal, matching parity test behaviour.
-        mon.subscribe(handler)
         mon.start()
 
         if not mon.ready.wait(timeout=15):
-            print(f'  [DBG] attempt {attempt+1}: monitor not ready')
             mon.stop()
             mon.join(timeout=5)
             _restore_udisks()
@@ -58,9 +54,7 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         dev = img = None
         try:
             dev, img, name = make_image()
-            print(f'  [DBG] attempt {attempt+1}: device={dev} events_so_far={len(events)}')
-        except Exception as e:
-            print(f'  [DBG] attempt {attempt+1}: make_image failed: {e}')
+        except Exception:
             mon.stop()
             mon.join(timeout=5)
             _restore_udisks()
@@ -77,9 +71,6 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
 
         mon.stop()
         mon.join(timeout=5)
-
-        print(f'  [DBG] attempt {attempt+1}: stopped, '
-              f'total_events={len(events)} all_received={all_received}')
 
         if all_received:
             self.addCleanup(cleanup, dev, img)
@@ -154,7 +145,6 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         mon = UdisksMonitor(backend='dbus')
         for et in ALL_EVENT_TYPES:
             mon.subscribe(on_event, event_type=et)
-        mon.subscribe(on_event)
         mon.start()
         if not mon.ready.wait(timeout=15):
             mon.stop()
@@ -251,7 +241,6 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         mon = UdisksMonitor(backend='dbus')
         for et in ALL_EVENT_TYPES:
             mon.subscribe(on_event, event_type=et)
-        mon.subscribe(on_event)
         mon.start()
         if not mon.ready.wait(timeout=15):
             mon.stop()
