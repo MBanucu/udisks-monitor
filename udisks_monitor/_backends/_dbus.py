@@ -224,6 +224,8 @@ class _DBusBackend(_Backend):
     def _on_job_completed(self, object_path, success, message):
         ts = _timestamp()
         job_id = int(object_path.rsplit('/', 1)[1])
-        self._dispatch(JobCompleted(
+        event = JobCompleted(
             job_path=object_path, job_id=job_id,
-            success=success, message=message, timestamp=ts))
+            success=success, message=message, timestamp=ts)
+        print(f'  [JC] dispatcher subs={len(self._subs)} event={event}')
+        self._dispatch(event)
