@@ -149,6 +149,8 @@ class _DBusBackend(_Backend):
     def _on_message(self, msg):
         if msg.message_type != _MessageType.SIGNAL:
             return
+        if msg.interface.startswith('org.freedesktop.UDisks2'):
+            print(f'  [UDISKS] {msg.interface}.{msg.member} {msg.path}')
         if msg.interface == 'org.freedesktop.DBus.ObjectManager':
             if msg.member == 'InterfacesAdded':
                 self._on_interfaces_added(*msg.body)
