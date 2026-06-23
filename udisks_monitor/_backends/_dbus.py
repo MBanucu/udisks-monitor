@@ -104,11 +104,14 @@ class _DBusBackend(_Backend):
                 raise RuntimeError(
                     f'AddMatch failed for rule {rule!r}: '
                     f'{reply.body[0] if reply.body else "unknown"}')
+            print(f'  [MATCH] rule={rule!r} ok')
 
         self._stop_signal = asyncio.Event()
         self.ready.set()
+        print(f'  [READY] subs={len(self._subs)}')
         await self._stop_signal.wait()
         bus.disconnect()
+        print(f'  [STOP]')
         # Drain subscribers after disconnect — no more signals can
         # arrive, so any queued events are already dispatched.
         for _, _, q in self._subs:
