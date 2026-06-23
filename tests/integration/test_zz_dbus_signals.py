@@ -2,15 +2,14 @@
 
 import subprocess
 import threading
-import time
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
-                                       _udisks_alive, cleanup, make_image,
+from tests.integration.helpers import (_restart_udisks, _udisks_alive,
+                                       cleanup, make_image,
                                        udisksctl_available)
 
 ALL_EVENT_TYPES = (
@@ -43,7 +42,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
     def setUp(self):
         if TestDBusSignalCompleteness._udisks_dead:
             self.skipTest('UDisks2 died during earlier D-Bus test')
-        _ensure_udisks_ready()
+        _restart_udisks()
         if not _udisks_alive():
             TestDBusSignalCompleteness._udisks_dead = True
             self.skipTest('UDisks2 not available — skipping remaining D-Bus tests')
@@ -65,7 +64,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         for et in SETUP_TYPES:
             mon.subscribe(on_event, event_type=et)
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10),
+        self.assertTrue(mon.ready.wait(timeout=15),
                         'D-Bus monitor did not become ready')
 
         dev, img, name = make_image()
@@ -73,7 +72,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
 
         # Wait for at least the setup-related signals
         for et in (InterfaceAdded, JobCompleted, DevicePropertyChanged):
-            self.assertTrue(received[et].wait(timeout=10),
+            self.assertTrue(received[et].wait(timeout=15),
                             f'{et.__name__} not received from loop-setup')
 
         mon.stop()
@@ -115,12 +114,12 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         for et in ALL_EVENT_TYPES:
             mon.subscribe(on_event, event_type=et)
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10))
+        self.assertTrue(mon.ready.wait(timeout=15))
 
         dev, img, name = make_image()
 
         # Wait for setup to complete
-        received[JobCompleted].wait(timeout=10)
+        received[JobCompleted].wait(timeout=15)
         # Clear received events so we track only delete events
         received = {et: threading.Event() for et in ALL_EVENT_TYPES}
         events.clear()
@@ -130,7 +129,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
             capture_output=True)
 
         for et in (JobCompleted, DevicePropertyChanged):
-            self.assertTrue(received[et].wait(timeout=10),
+            self.assertTrue(received[et].wait(timeout=15),
                             f'{et.__name__} not received from loop-delete')
 
         mon.stop()
@@ -147,19 +146,23 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         """JobCompleted from loop-setup should have success=True and
         a valid job_path."""
         events = []
+        received = threading.Event()
 
         def on_jc(evt):
             events.append(evt)
+            if isinstance(evt, JobCompleted):
+                received.set()
 
         mon = UdisksMonitor(backend='dbus')
         mon.subscribe(on_jc, event_type=JobCompleted)
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10))
+        self.assertTrue(mon.ready.wait(timeout=15))
 
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)
 
-        time.sleep(0.5)
+        self.assertTrue(received.wait(timeout=15),
+                        'JobCompleted not received')
 
         mon.stop()
         mon.join(timeout=5)
@@ -179,19 +182,23 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         """DevicePropertyChanged should have valid device_name,
         interface, property, and value fields."""
         events = []
+        received = threading.Event()
 
         def on_dpc(evt):
             events.append(evt)
+            if isinstance(evt, DevicePropertyChanged):
+                received.set()
 
         mon = UdisksMonitor(backend='dbus')
         mon.subscribe(on_dpc, event_type=DevicePropertyChanged)
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10))
+        self.assertTrue(mon.ready.wait(timeout=15))
 
         dev, img, name = make_image()
         self.addCleanup(cleanup, dev, img)
 
-        time.sleep(0.5)
+        self.assertTrue(received.wait(timeout=15),
+                        'DevicePropertyChanged not received')
 
         mon.stop()
         mon.join(timeout=5)
@@ -214,20 +221,23 @@ class TestDBusSignalCompleteness(unittest.TestCase):
     def test_interface_added_properties_are_populated(self):
         """InterfaceAdded events should have a non-empty properties dict."""
         events = []
+        received = threading.Event()
 
         def on_ia(evt):
             events.append(evt)
+            if isinstance(evt, InterfaceAdded):
+                received.set()
 
         mon = UdisksMonitor(backend='dbus')
         mon.subscribe(on_ia, event_type=InterfaceAdded)
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10))
+        self.assertTrue(mon.ready.wait(timeout=15))
 
         dev, img, _name = make_image()
         self.addCleanup(cleanup, dev, img)
 
-        # Wait a moment for signals to arrive
-        time.sleep(0.5)
+        self.assertTrue(received.wait(timeout=15),
+                        'InterfaceAdded not received')
 
         mon.stop()
         mon.join(timeout=5)
@@ -262,7 +272,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         for et in ALL_EVENT_TYPES:
             mon.subscribe(on_event, event_type=et)
         mon.start()
-        self.assertTrue(mon.ready.wait(timeout=10))
+        self.assertTrue(mon.ready.wait(timeout=15))
 
         dev, img, _name = make_image()
 
@@ -271,7 +281,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
             capture_output=True)
 
         # Wait for completion signals
-        received[JobCompleted].wait(timeout=10)
+        received[JobCompleted].wait(timeout=15)
 
         mon.stop()
         mon.join(timeout=5)
