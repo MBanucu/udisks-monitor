@@ -35,13 +35,13 @@ from udisks_monitor._events import (
 
 _BLOCK_DEVICES = '/block_devices/'
 
-# Match UDisks2 signals by path namespace so the D-Bus daemon filters
-# out systemd1 and other service traffic before delivery.  A backup
-# interface rule for org.freedesktop.UDisks2.Job is included in case
-# the ci runner's dbus-daemon has a path_namespace edge case.
+# Match only UDisks2 signals by path namespace so the D-Bus daemon
+# filters out systemd1 and other service signals before delivery.
+# Using 'type=signal' alone floods the receive buffer because all
+# services share org.freedesktop.DBus.Properties and ObjectManager
+# interfaces, causing JobCompleted to be dropped.
 _ADD_MATCH_RULES = [
     'type=signal,path_namespace=/org/freedesktop/UDisks2',
-    'type=signal,interface=org.freedesktop.UDisks2.Job',
 ]
 
 
@@ -149,8 +149,6 @@ class _DBusBackend(_Backend):
     def _on_message(self, msg):
         if msg.message_type != _MessageType.SIGNAL:
             return
-        if msg.interface.startswith('org.freedesktop.UDisks2'):
-            print(f'  [UDISKS] {msg.interface}.{msg.member} {msg.path}')
         if msg.interface == 'org.freedesktop.DBus.ObjectManager':
             if msg.member == 'InterfacesAdded':
                 self._on_interfaces_added(*msg.body)

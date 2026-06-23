@@ -51,8 +51,6 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
             _restore_udisks()
             continue
 
-        time.sleep(1)  # let UDisks2 fully settle after restart
-
         dev = img = None
         try:
             dev, img, name = make_image()
@@ -96,7 +94,9 @@ class TestDBusSignalCompleteness(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        _restart_udisks()
+        # Detach stale loop devices left by earlier test classes
+        # before starting a fresh UDisks2 instance.
+        _restore_udisks()
 
     def setUp(self):
         _restart_udisks()
