@@ -35,14 +35,13 @@ from udisks_monitor._events import (
 
 _BLOCK_DEVICES = '/block_devices/'
 
-# Match only UDisks2 signals by path namespace so the D-Bus daemon
-# filters out systemd1 and other service signals before delivery.
-# Using 'type=signal' alone or interface-based rules still floods
-# the receive buffer (all services share org.freedesktop.DBus.Properties
-# and org.freedesktop.DBus.ObjectManager interfaces), causing
-# JobCompleted to be dropped.
+# Match UDisks2 signals by path namespace so the D-Bus daemon filters
+# out systemd1 and other service traffic before delivery.  A backup
+# interface rule for org.freedesktop.UDisks2.Job is included in case
+# the ci runner's dbus-daemon has a path_namespace edge case.
 _ADD_MATCH_RULES = [
     'type=signal,path_namespace=/org/freedesktop/UDisks2',
+    'type=signal,interface=org.freedesktop.UDisks2.Job',
 ]
 
 
@@ -104,14 +103,11 @@ class _DBusBackend(_Backend):
                 raise RuntimeError(
                     f'AddMatch failed for rule {rule!r}: '
                     f'{reply.body[0] if reply.body else "unknown"}')
-            print(f'  [MATCH] rule={rule!r} ok')
 
         self._stop_signal = asyncio.Event()
         self.ready.set()
-        print(f'  [READY] subs={len(self._subs)}')
         await self._stop_signal.wait()
         bus.disconnect()
-        print(f'  [STOP]')
         # Drain subscribers after disconnect — no more signals can
         # arrive, so any queued events are already dispatched.
         for _, _, q in self._subs:
@@ -227,8 +223,6 @@ class _DBusBackend(_Backend):
     def _on_job_completed(self, object_path, success, message):
         ts = _timestamp()
         job_id = int(object_path.rsplit('/', 1)[1])
-        event = JobCompleted(
+        self._dispatch(JobCompleted(
             job_path=object_path, job_id=job_id,
-            success=success, message=message, timestamp=ts)
-        print(f'  [JC] dispatcher subs={len(self._subs)} event={event}')
-        self._dispatch(event)
+            success=success, message=message, timestamp=ts))
