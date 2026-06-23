@@ -9,8 +9,7 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
-                                       _restore_udisks, _udisks_alive,
+from tests.integration.helpers import (_restart_udisks, _restore_udisks,
                                        cleanup, make_image,
                                        udisksctl_available)
 
@@ -26,7 +25,7 @@ SETUP_TYPES = (
 
 
 def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
-    """Run one loop-setup + stop cycle with retry and UDisks2 recovery.
+    """Run a loop-setup cycle with retry and UDisks2 recovery.
 
     Returns (events, device, img, name) on success, or
     (None, None, None, None) after max retries.
@@ -52,6 +51,7 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
             _restore_udisks()
             continue
 
+        dev = img = None
         try:
             dev, img, name = make_image()
         except Exception:
@@ -59,8 +59,6 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
             mon.join(timeout=5)
             _restore_udisks()
             continue
-
-        self.addCleanup(cleanup, dev, img)
 
         all_received = True
         for et in wait_for:
@@ -75,12 +73,11 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         mon.join(timeout=5)
 
         if all_received:
+            self.addCleanup(cleanup, dev, img)
             return events, dev, img, name
 
-        if not _udisks_alive():
-            _restore_udisks()
-        else:
-            time.sleep(2)
+        cleanup(dev, img)
+        _restore_udisks()
 
     return None, None, None, None
 
@@ -91,23 +88,16 @@ class TestDBusSignalCompleteness(unittest.TestCase):
     loop-setup + loop-delete cycle with correct data.
 
     Tests run last in the integration suite (test_zz_ prefix) because
-    creating multiple D-Bus connections + loop devices can destabilise
-    UDisks2 on CI runners (per dbus-udisks-analysis findings).
+    creating multiple D-Bus connections and loop devices can degrade
+    UDisks2 responsiveness.
     """
-
-    _udisks_dead = False
 
     @classmethod
     def setUpClass(cls):
         _restart_udisks()
 
     def setUp(self):
-        if TestDBusSignalCompleteness._udisks_dead:
-            self.fail('UDisks2 died during earlier D-Bus test')
-        _ensure_udisks_ready()
-        if not _udisks_alive():
-            TestDBusSignalCompleteness._udisks_dead = True
-            self.fail('UDisks2 not available')
+        _restart_udisks()
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded

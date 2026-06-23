@@ -12,9 +12,9 @@ from udisks_monitor import InterfaceAdded, JobCompleted, UdisksMonitor
 def _backend():
     """Return the backend to use for integration tests.
 
-    Subprocess backend is preferred in CI because the D-Bus backend
-    creates persistent connections that contribute to UDisks2 overload
-    when many integration tests run in sequence.
+    Subprocess backend is preferred in CI because it does not open
+    D-Bus connections, avoiding UDisks2 connection accumulation
+    across sequential integration tests.
     """
     return 'subprocess' if os.environ.get('CI', '') == 'true' else 'auto'
 
@@ -101,13 +101,11 @@ def make_image():
 
 
 def _restore_udisks(max_retries=3):
-    """Robustly restore UDisks2 after crash or destabilisation.
+    """Robustly restore UDisks2 after it becomes unresponsive.
 
-    Per the dbus-udisks-analysis findings, CI runners require:
-      * Detaching dangling loop devices first
-      * Killing lingering udisksd processes
-      * systemctl stop → reset-failed → start cycle
-      * Verification via D-Bus ping + introspection
+    Detaches dangling loop devices, kills lingering udisksd processes,
+    resets systemd failure counters, and starts a fresh daemon.
+    Verifies the new instance responds to D-Bus introspection.
 
     Returns True if UDisks2 is alive after recovery, False otherwise.
     """
@@ -168,9 +166,8 @@ def cleanup(device, img_path):
 def _collect_events_with_retry(backend, max_retries=3):
     """Run a loop-setup + delete cycle, retrying on UDisks2 failure.
 
-    Per the dbus-udisks-analysis findings, UDisks2 can crash or become
-    unresponsive during D-Bus + loop stress on CI runners.  This wrapper
-    detects failures and restores UDisks2 before retrying.
+    Detects when UDisks2 is unresponsive and restores it before
+    retrying so a transient state does not produce a false failure.
     """
     for attempt in range(max_retries):
         events = _collect_events(backend)
