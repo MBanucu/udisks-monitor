@@ -150,6 +150,7 @@ class _DBusBackend(_Backend):
     def _on_message(self, msg):
         if msg.message_type != _MessageType.SIGNAL:
             return
+        print(f'  [SIGNAL] {msg.interface}.{msg.member}  {msg.path}')
         if msg.interface == 'org.freedesktop.DBus.ObjectManager':
             if msg.member == 'InterfacesAdded':
                 self._on_interfaces_added(*msg.body)
