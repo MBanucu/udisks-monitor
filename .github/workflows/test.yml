@@ -37,17 +37,56 @@ jobs:
           });
           POLKIT
 
-      - name: Install coverage
-        if: false
-        run: python -m pip install coverage
-
-      - name: Set up coverage with relative paths
-        if: false
+      - name: Build and install udisks2 2.10.2
         run: |
-          cat > .coveragerc << 'EOF'
-          [run]
-          relative_files = True
-          EOF
+          set -e
+          echo "=== Stopping system udisks2 ==="
+          sudo systemctl stop udisks2 2>/dev/null || true
+          sudo pkill -9 udisksd 2>/dev/null || true
+
+          echo "=== Enabling source repositories ==="
+          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+            sudo sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+          elif [ -f /etc/apt/sources.list ]; then
+            sudo sed -i 's/^# deb-src/deb-src/' /etc/apt/sources.list
+          fi
+
+          echo "=== Installing build dependencies ==="
+          sudo apt-get update -qq
+          sudo apt-get build-dep -y -q udisks2
+          sudo apt-get install -y -q autoconf automake libtool gettext
+
+          echo "=== Downloading udisks 2.10.2 ==="
+          curl -sSL -o /tmp/udisks-2.10.2.tar.bz2 \
+            "https://github.com/storaged-project/udisks/releases/download/udisks-2.10.2/udisks-2.10.2.tar.bz2"
+          cd /tmp
+          tar xf udisks-2.10.2.tar.bz2
+          cd udisks-2.10.2
+
+          echo "=== Building ==="
+          ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+            --libexecdir=/usr/libexec --disable-static
+          make -j"$(nproc)"
+
+          echo "=== Installing ==="
+          sudo make install
+          sudo ldconfig
+
+          echo "=== Verifying installed version ==="
+          /usr/libexec/udisks2/udisksd --version || true
+
+      - name: Ensure UDisks2 is running
+        run: |
+          sudo losetup -D 2>/dev/null || true
+          sudo pkill -9 udisksd 2>/dev/null || true
+          sudo systemctl stop udisks2 2>/dev/null || true
+          sleep 2
+          sudo systemctl reset-failed udisks2 2>/dev/null || true
+          sudo systemctl start udisks2 2>/dev/null || true
+          sleep 5
+          busctl --system call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus NameHasOwner s org.freedesktop.UDisks2
+          udisksctl dump > /dev/null 2>&1 || echo "WARNING: udisksctl dump failed, tests may skip"
+          sudo modprobe loop 2>/dev/null || true
 
       - name: Run tests
         run: python -W ignore::ResourceWarning -m unittest discover -s tests -v
