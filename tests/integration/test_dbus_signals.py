@@ -1,6 +1,5 @@
 """Integration test verifying D-Bus backend receives all expected signals."""
 
-import os
 import subprocess
 import threading
 import time
@@ -10,12 +9,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_ensure_udisks_ready, _restart_udisks,
-                                       cleanup, make_image,
+from tests.integration.helpers import (_restart_udisks, cleanup, make_image,
                                        udisksctl_available)
-
-_IS_CI = os.environ.get('CI', '') == 'true'
-
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged, InterfaceAdded, InterfaceRemoved,
@@ -35,11 +30,10 @@ class TestDBusSignalCompleteness(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not _IS_CI:
-            _restart_udisks()
+        _restart_udisks()
 
     def setUp(self):
-        _ensure_udisks_ready()
+        _restart_udisks()
 
     def test_loop_setup_emits_all_expected_signals(self):
         """loop-setup should emit: DevicePropertyChanged, InterfaceAdded

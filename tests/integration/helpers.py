@@ -200,7 +200,13 @@ def _collect_events(backend):
         mon.join(timeout=5)
         return None
 
-    dev, img, _name = make_image()
+    try:
+        dev, img, _name = make_image()
+    except Exception:
+        mon.stop()
+        mon.join(timeout=5)
+        return None
+
     try:
         if not interface_added.wait(timeout=5):
             return None
