@@ -1,19 +1,17 @@
 """Integration test verifying both backends produce equivalent events."""
 
-import os
 import time
 import unittest
 
 from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
-                            JobProperties, JobRemoved, UdisksMonitor)
+                            JobProperties, JobRemoved)
 
-from tests.integration.helpers import (_backend,
-                                       _collect_events,
+from tests.integration.helpers import (_collect_events,
+                                       _collect_events_with_retry,
+                                       _ensure_udisks_ready,
                                        _restart_udisks,
                                        udisksctl_available)
-
-SKIP_PARITY_IN_CI = os.environ.get('CI', '') == 'true'
 
 ALL_EVENT_TYPES = (
     DevicePropertyChanged,
@@ -26,8 +24,6 @@ ALL_EVENT_TYPES = (
 )
 
 
-@unittest.skipIf(SKIP_PARITY_IN_CI,
-                 'parity tests stress UDisks2 too aggressively for CI runners')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestBackendParity(unittest.TestCase):
     """Compare events from both backends against the same operation sequence.
@@ -37,22 +33,26 @@ class TestBackendParity(unittest.TestCase):
     drops its D-Bus connection abruptly.  Running the D-Bus backend
     afterwards would inherit a destabilised UDisks2 daemon.
 
-    UDisks2 is restarted before each test method to ensure a clean
-    daemon state — without this, cumulative stress from repeated
-    loop-setup operations causes the daemon to crash on CI runners.
+    UDisks2 is restarted once per test class to provide a clean
+    daemon state.  Between test methods a readiness check ensures
+    UDisks2 is still alive.
     """
+
+    @classmethod
+    def setUpClass(cls):
+        _restart_udisks()
+
+    def setUp(self):
+        _ensure_udisks_ready()
 
     @staticmethod
     def _dbus_events():
-        return _collect_events('dbus')
+        return _collect_events_with_retry('dbus')
 
     @staticmethod
     def _subprocess_events():
-        time.sleep(0.5)
+        time.sleep(1.5)
         return _collect_events('subprocess')
-
-    def setUp(self):
-        _restart_udisks()
 
     def test_both_backends_emit_all_event_types(self):
         for backend_fn, label in [(self._dbus_events, 'dbus'),
