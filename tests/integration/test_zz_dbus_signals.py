@@ -43,6 +43,9 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         mon = UdisksMonitor(backend='dbus')
         for et in subscriptions:
             mon.subscribe(handler, event_type=et)
+        # Catch-all subscriber — ensures _dispatch has a receiver
+        # for every signal, matching parity test behaviour.
+        mon.subscribe(handler)
         mon.start()
 
         if not mon.ready.wait(timeout=15):
@@ -151,6 +154,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         mon = UdisksMonitor(backend='dbus')
         for et in ALL_EVENT_TYPES:
             mon.subscribe(on_event, event_type=et)
+        mon.subscribe(on_event)
         mon.start()
         if not mon.ready.wait(timeout=15):
             mon.stop()
@@ -247,6 +251,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         mon = UdisksMonitor(backend='dbus')
         for et in ALL_EVENT_TYPES:
             mon.subscribe(on_event, event_type=et)
+        mon.subscribe(on_event)
         mon.start()
         if not mon.ready.wait(timeout=15):
             mon.stop()
