@@ -51,6 +51,8 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
             _restore_udisks()
             continue
 
+        time.sleep(1)  # let UDisks2 fully settle after restart
+
         dev = img = None
         try:
             dev, img, name = make_image()
