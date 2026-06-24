@@ -163,18 +163,19 @@ def cleanup(device, img_path):
         os.unlink(img_path)
 
 
-def _collect_events_with_retry(backend, max_retries=3):
+def _collect_events_with_retry(backend, max_retries=2):
     """Run a loop-setup + delete cycle, retrying on UDisks2 failure.
 
-    Detects when UDisks2 is unresponsive and restores it before
-    retrying so a transient state does not produce a false failure.
+    Uses _ensure_udisks_ready rather than _restore_udisks to avoid
+    aggressive restarts that contribute to UDisks2 degradation from
+    D-Bus connection accumulation on CI runners.
     """
     for attempt in range(max_retries):
         events = _collect_events(backend)
         if events is not None:
             return events
         if not _udisks_alive():
-            _restore_udisks()
+            _ensure_udisks_ready()
         elif attempt < max_retries - 1:
             time.sleep(2)
     return None
