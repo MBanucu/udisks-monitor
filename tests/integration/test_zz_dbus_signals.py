@@ -1,6 +1,5 @@
 """Integration test verifying D-Bus backend receives all expected signals."""
 
-import os
 import subprocess
 import threading
 import time
@@ -14,21 +13,19 @@ from tests.integration.helpers import (_restart_udisks, _restore_udisks,
                                        cleanup, make_image,
                                        udisksctl_available)
 
-_IS_CI = os.environ.get('CI', '') == 'true'
-
 ALL_EVENT_TYPES = (
     DevicePropertyChanged, InterfaceAdded, InterfaceRemoved,
     JobAdded, JobProperties, JobCompleted, JobRemoved,
 )
 
-SETUP_TYPES = (
-    DevicePropertyChanged, InterfaceAdded,
-    JobAdded, JobProperties, JobCompleted, JobRemoved,
-)
-
 
 def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
-    """Run a loop-setup cycle with retry and UDisks2 recovery.
+    """Run a loop-setup + loop-delete cycle with retry and UDisks2
+    recovery.
+
+    loop-delete is issued after loop-setup so that JobCompleted is
+    triggered even on UDisks2 environments that omit the signal for
+    loop-setup alone (observed in GitHub Actions CI).
 
     Returns (events, device, img, name) on success, or
     (None, None, None, None) after max retries.
@@ -63,6 +60,12 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
             _restore_udisks()
             continue
 
+        time.sleep(1)
+        subprocess.run(
+            ['udisksctl', 'loop-delete', '-b', dev,
+             '--no-user-interaction'],
+            capture_output=True)
+
         all_received = True
         for et in wait_for:
             if not received[et].wait(timeout=15):
@@ -85,11 +88,6 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
     return None, None, None, None
 
 
-@unittest.skipIf(_IS_CI,
-                 'UDisks2 on CI runners enters a degraded state after '
-                 'D-Bus connection cycles (loop-setup succeeds but '
-                 'JobCompleted is not emitted). The parity tests cover '
-                 'D-Bus backend equivalence and pass reliably.')
 @unittest.skipUnless(udisksctl_available(), 'udisksctl not available')
 class TestDBusSignalCompleteness(unittest.TestCase):
     """Verify the D-Bus backend receives all expected signals from a
@@ -102,31 +100,29 @@ class TestDBusSignalCompleteness(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Detach stale loop devices left by earlier test classes
-        # before starting a fresh UDisks2 instance.
         _restore_udisks()
 
     def setUp(self):
         _restart_udisks()
 
-    def test_loop_setup_emits_all_expected_signals(self):
-        """loop-setup should emit: DevicePropertyChanged, InterfaceAdded
-        (block + filesystem), JobAdded, JobProperties, JobCompleted,
-        JobRemoved."""
+    def test_lifecycle_emits_all_event_types(self):
+        """loop-setup + loop-delete should emit all 7 UDisks2 event
+        types.  InterfaceAdded must carry the correct device name and
+        a valid UDisks2 interface."""
         events, dev, img, name = _collect_dbus_events(
-            self, SETUP_TYPES,
+            self, ALL_EVENT_TYPES,
             (InterfaceAdded, JobCompleted, DevicePropertyChanged))
         self.assertIsNotNone(events, 'UDisks2 unresponsive')
 
         seen = {type(e) for e in events}
-        for et in SETUP_TYPES:
+        for et in ALL_EVENT_TYPES:
             self.assertIn(et, seen,
                           f'{et.__name__} missing from D-Bus backend '
                           f'(saw {[t.__name__ for t in seen]})')
 
         ia_events = [e for e in events if isinstance(e, InterfaceAdded)]
         self.assertGreater(len(ia_events), 0,
-                            'no InterfaceAdded events received')
+                           'no InterfaceAdded events received')
         ia_device_names = {e.device_name for e in ia_events}
         self.assertIn(name, ia_device_names,
                       f'InterfaceAdded device_name mismatch: '
@@ -136,51 +132,26 @@ class TestDBusSignalCompleteness(unittest.TestCase):
             any(i.startswith('org.freedesktop.UDisks2.') for i in ia_interfaces),
             f'no UDisks2 interface in {ia_interfaces}')
 
-    def test_loop_delete_emits_interface_removed(self):
-        """loop-delete should emit InterfaceRemoved for block + filesystem,
-        plus DevicePropertyChanged and JobCompleted/JobRemoved."""
-        setup_events, dev, img, name = _collect_dbus_events(
-            self, ALL_EVENT_TYPES, (JobCompleted,))
-        self.assertIsNotNone(setup_events, 'UDisks2 unresponsive')
-
-        events = []
-        received = {et: threading.Event() for et in ALL_EVENT_TYPES}
-
-        def on_event(evt):
-            events.append(evt)
-            for et, ev in received.items():
-                if isinstance(evt, et):
-                    ev.set()
-
-        mon = UdisksMonitor(backend='dbus')
-        for et in ALL_EVENT_TYPES:
-            mon.subscribe(on_event, event_type=et)
-        mon.start()
-        if not mon.ready.wait(timeout=15):
-            mon.stop()
-            mon.join(timeout=5)
-            self.fail('D-Bus monitor not ready')
-
-        subprocess.run(
-            ['udisksctl', 'loop-delete', '-b', dev, '--no-user-interaction'],
-            capture_output=True)
-
-        for et in (JobCompleted, DevicePropertyChanged):
-            self.assertTrue(received[et].wait(timeout=15),
-                            f'{et.__name__} not received from loop-delete')
-
-        mon.stop()
-        mon.join(timeout=5)
+    def test_interface_removed_received_on_delete(self):
+        """loop-delete emits InterfaceRemoved for block + filesystem
+        together with JobCompleted and DevicePropertyChanged."""
+        events, dev, img, _name = _collect_dbus_events(
+            self, ALL_EVENT_TYPES,
+            (JobCompleted, DevicePropertyChanged))
+        self.assertIsNotNone(events, 'UDisks2 unresponsive')
 
         seen = {type(e) for e in events}
         if InterfaceRemoved not in seen:
-            self.fail('InterfaceRemoved not received')
-        self.assertIn(JobCompleted, seen)
-        self.assertIn(DevicePropertyChanged, seen)
+            self.fail(
+                f'InterfaceRemoved not received '
+                f'(saw: {[t.__name__ for t in seen]})')
+        self.assertIn(JobCompleted, seen,
+                      'JobCompleted missing from delete cycle')
+        self.assertIn(DevicePropertyChanged, seen,
+                      'DevicePropertyChanged missing from delete cycle')
 
     def test_job_completed_has_correct_fields(self):
-        """JobCompleted from loop-setup should have success=True and
-        a valid job_path."""
+        """JobCompleted should have success=True and a valid job_path."""
         events, dev, img, _name = _collect_dbus_events(
             self, (JobCompleted,), (JobCompleted,))
         self.assertIsNotNone(events, 'UDisks2 unresponsive')
@@ -238,40 +209,16 @@ class TestDBusSignalCompleteness(unittest.TestCase):
                 f'unexpected object_path: {ia.object_path!r}')
 
     def test_all_seven_event_types_received(self):
-        """A full loop-setup + loop-delete cycle should emit all 7 types."""
-        setup_events, dev, img, _name = _collect_dbus_events(
+        """A full loop-setup + loop-delete cycle should emit all 7
+        event types including InterfaceRemoved."""
+        events, dev, img, _name = _collect_dbus_events(
             self, ALL_EVENT_TYPES, (JobCompleted,))
-        self.assertIsNotNone(setup_events, 'UDisks2 unresponsive')
-
-        events = list(setup_events)
-
-        def on_event(evt):
-            events.append(evt)
-
-        mon = UdisksMonitor(backend='dbus')
-        for et in ALL_EVENT_TYPES:
-            mon.subscribe(on_event, event_type=et)
-        mon.start()
-        if not mon.ready.wait(timeout=15):
-            mon.stop()
-            mon.join(timeout=5)
-            self.fail('D-Bus monitor not ready')
-
-        subprocess.run(
-            ['udisksctl', 'loop-delete', '-b', dev, '--no-user-interaction'],
-            capture_output=True)
-        time.sleep(1)
-
-        mon.stop()
-        mon.join(timeout=5)
+        self.assertIsNotNone(events, 'UDisks2 unresponsive')
 
         seen = {type(e) for e in events}
-        missing = [et.__name__ for et in ALL_EVENT_TYPES if et not in seen
-                   and et is not InterfaceRemoved]
-        self.assertFalse(missing,
-                         f'D-Bus backend missed event types: {missing} '
-                         f'(received {len(events)} events: '
-                         f'{[t.__name__ for t in seen]})')
-
-        if InterfaceRemoved not in seen:
-            self.fail('InterfaceRemoved not received')
+        missing = [et.__name__ for et in ALL_EVENT_TYPES if et not in seen]
+        self.assertFalse(
+            missing,
+            f'D-Bus backend missed event types: {missing} '
+            f'(received {len(events)} events: '
+            f'{[t.__name__ for t in seen]})')
