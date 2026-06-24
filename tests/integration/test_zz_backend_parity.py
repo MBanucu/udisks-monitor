@@ -9,7 +9,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
 
 from tests.integration.helpers import (_collect_events,
                                        _collect_events_with_retry,
-                                       _restart_udisks,
+                                       _ensure_udisks_ready,
+                                       _restore_udisks,
                                        udisksctl_available)
 
 ALL_EVENT_TYPES = (
@@ -39,10 +40,10 @@ class TestBackendParity(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        _restart_udisks()
+        _restore_udisks()
 
     def setUp(self):
-        _restart_udisks()
+        _ensure_udisks_ready()
 
     @staticmethod
     def _dbus_events():

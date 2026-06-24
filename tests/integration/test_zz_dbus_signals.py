@@ -9,7 +9,8 @@ from udisks_monitor import (DevicePropertyChanged, InterfaceAdded,
                             InterfaceRemoved, JobAdded, JobCompleted,
                             JobProperties, JobRemoved, UdisksMonitor)
 
-from tests.integration.helpers import (_restart_udisks, _restore_udisks,
+from tests.integration.helpers import (_ensure_udisks_ready,
+                                       _restore_udisks,
                                        cleanup, make_image,
                                        udisksctl_available)
 
@@ -30,7 +31,7 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
     Returns (events, device, img, name) on success, or
     (None, None, None, None) after max retries.
     """
-    for attempt in range(3):
+    for attempt in range(2):
         events = []
         received = {et: threading.Event() for et in wait_for}
 
@@ -48,7 +49,7 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         if not mon.ready.wait(timeout=15):
             mon.stop()
             mon.join(timeout=5)
-            _restore_udisks()
+            _ensure_udisks_ready()
             continue
 
         dev = img = None
@@ -57,7 +58,7 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
         except Exception:
             mon.stop()
             mon.join(timeout=5)
-            _restore_udisks()
+            _ensure_udisks_ready()
             continue
 
         time.sleep(1)
@@ -83,7 +84,6 @@ def _collect_dbus_events(self, subscriptions, wait_for, settle=0.5):
             return events, dev, img, name
 
         cleanup(dev, img)
-        _restore_udisks()
 
     return None, None, None, None
 
@@ -103,7 +103,7 @@ class TestDBusSignalCompleteness(unittest.TestCase):
         _restore_udisks()
 
     def setUp(self):
-        _restart_udisks()
+        _ensure_udisks_ready()
 
     def test_lifecycle_emits_all_event_types(self):
         """loop-setup + loop-delete should emit all 7 UDisks2 event
